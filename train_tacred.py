@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from transformers import AutoConfig, AutoTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 from utils import set_seed, collate_fn
-from prepro import TACREDProcessor
+from prepro import DatasetProcessor
 from evaluation import get_f1
 from model import REModel
 from torch.cuda.amp import GradScaler
@@ -92,8 +92,9 @@ def evaluate(args, model, features, tag='dev'):
 def main():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--data_dir", default="./data/tacred", type=str)
-    parser.add_argument("--model_name_or_path", default="roberta-large", type=str)
+    parser.add_argument("--data_root", default="./data", type=str)
+    parser.add_argument("--dataset", required=True, type=str)
+    parser.add_argument("--model_name", default="roberta-large", type=str)
     parser.add_argument("--input_format", default="typed_entity_marker_punct", type=str,
                         help="in [entity_mask, entity_marker, entity_marker_punct, typed_entity_marker, typed_entity_marker_punct]")
 
@@ -104,6 +105,8 @@ def main():
     parser.add_argument("--max_seq_length", default=512, type=int,
                         help="The maximum total input sequence length after tokenization. Sequences longer "
                              "than this will be truncated.")
+
+    parser.add_argument("--ckpt_dir", default="./ckpts", type=str, help="model checkpoints save directories.")
 
     parser.add_argument("--train_batch_size", default=32, type=int,
                         help="Batch size for training.")
@@ -152,27 +155,23 @@ def main():
     model = REModel(args, config)
     model.to(0)
 
-    train_file = os.path.join(args.data_dir, "train.json")
-    dev_file = os.path.join(args.data_dir, "dev.json")
-    test_file = os.path.join(args.data_dir, "test.json")
-    dev_rev_file = os.path.join(args.data_dir, "dev_rev.json")
-    test_rev_file = os.path.join(args.data_dir, "test_rev.json")
+    data_dir = os.path.join(args.data_root, args.dataset)
+    train_file = os.path.join(data_dir, "train.json")
+    dev_file = os.path.join(data_dir, "dev.json")
+    test_file = os.path.join(data_dir, "test.json")
 
-    processor = TACREDProcessor(args, tokenizer)
+    processor = DatasetProcessor(args, tokenizer)
     train_features = processor.read(train_file)
     dev_features = processor.read(dev_file)
     test_features = processor.read(test_file)
-    dev_rev_features = processor.read(dev_rev_file)
-    test_rev_features = processor.read(test_rev_file)
 
+    # 增加了新的token
     if len(processor.new_tokens) > 0:
         model.encoder.resize_token_embeddings(len(tokenizer))
 
     benchmarks = (
         ("dev", dev_features),
         ("test", test_features),
-        ("dev_rev", dev_rev_features),
-        ("test_rev", test_rev_features),
     )
 
     train(args, model, train_features, benchmarks)
