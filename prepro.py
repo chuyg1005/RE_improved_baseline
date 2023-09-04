@@ -28,8 +28,24 @@ class Processor:
         if self.args.input_format == 'entity_marker':
             self.new_tokens = ['[E1]', '[/E1]', '[E2]', '[/E2]']
         self.tokenizer.add_tokens(self.new_tokens)
-        if self.args.input_format not in ('entity_mask', 'entity_marker', 'entity_marker_punct', 'typed_entity_marker', 'typed_entity_marker_punct'):
+        if self.args.input_format not in ('entity_mask', 'entity_marker', 'entity_marker_punct', 'typed_entity_marker', 'typed_entity_marker_punct', 'typed_entity_name_punct'):
             raise Exception("Invalid input format!")
+
+    def encode_typed_entity_name_punct(self, tokens, subj_type, obj_type, ss, se, os, oe):
+        sents = []
+        new_ss = 0
+        subj_type = self.tokenizer.tokenize(subj_type.replace("_", " ").lower())
+        obj_type = self.tokenizer.tokenize(obj_type.replace("_", " ").lower())
+        subj_tokens = ['@'] + ['*'] + subj_type + ['*'] + tokens[ss:se+1] + ['@']
+        obj_tokens = ['#'] + ['^'] + obj_type + ['^'] + tokens[os:oe+1] + ['#']
+
+        sents.extend(subj_tokens)
+        sents.extend(['and'])
+        new_os = len(sents)
+        sents.extend(obj_tokens)
+
+        return sents, new_ss, new_os
+
 
     def tokenize(self, tokens, subj_type, obj_type, ss, se, os, oe):
         """
@@ -62,68 +78,71 @@ class Processor:
             subj_type = self.tokenizer.tokenize(subj_type.replace("_", " ").lower())
             obj_type = self.tokenizer.tokenize(obj_type.replace("_", " ").lower())
 
-        for i_t, token in enumerate(tokens):
-            tokens_wordpiece = self.tokenizer.tokenize(token)
+        if input_format == 'typed_entity_name_punct':
+            sents, new_ss, new_os = self.encode_typed_entity_name_punct(tokens, subj_type, obj_type, ss, se, os, oe)
+        else:
+            for i_t, token in enumerate(tokens):
+                tokens_wordpiece = self.tokenizer.tokenize(token)
 
-            if input_format == 'entity_mask':
-                if ss <= i_t <= se or os <= i_t <= oe:
-                    tokens_wordpiece = []
+                if input_format == 'entity_mask':
+                    if ss <= i_t <= se or os <= i_t <= oe:
+                        tokens_wordpiece = []
+                        if i_t == ss:
+                            new_ss = len(sents)
+                            tokens_wordpiece = [subj_type]
+                        if i_t == os:
+                            new_os = len(sents)
+                            tokens_wordpiece = [obj_type]
+
+                elif input_format == 'entity_marker':
                     if i_t == ss:
                         new_ss = len(sents)
-                        tokens_wordpiece = [subj_type]
+                        tokens_wordpiece = ['[E1]'] + tokens_wordpiece
+                    if i_t == se:
+                        tokens_wordpiece = tokens_wordpiece + ['[/E1]']
                     if i_t == os:
                         new_os = len(sents)
-                        tokens_wordpiece = [obj_type]
+                        tokens_wordpiece = ['[E2]'] + tokens_wordpiece
+                    if i_t == oe:
+                        tokens_wordpiece = tokens_wordpiece + ['[/E2]']
 
-            elif input_format == 'entity_marker':
-                if i_t == ss:
-                    new_ss = len(sents)
-                    tokens_wordpiece = ['[E1]'] + tokens_wordpiece
-                if i_t == se:
-                    tokens_wordpiece = tokens_wordpiece + ['[/E1]']
-                if i_t == os:
-                    new_os = len(sents)
-                    tokens_wordpiece = ['[E2]'] + tokens_wordpiece
-                if i_t == oe:
-                    tokens_wordpiece = tokens_wordpiece + ['[/E2]']
+                elif input_format == 'entity_marker_punct':
+                    if i_t == ss:
+                        new_ss = len(sents)
+                        tokens_wordpiece = ['@'] + tokens_wordpiece
+                    if i_t == se:
+                        tokens_wordpiece = tokens_wordpiece + ['@']
+                    if i_t == os:
+                        new_os = len(sents)
+                        tokens_wordpiece = ['#'] + tokens_wordpiece
+                    if i_t == oe:
+                        tokens_wordpiece = tokens_wordpiece + ['#']
 
-            elif input_format == 'entity_marker_punct':
-                if i_t == ss:
-                    new_ss = len(sents)
-                    tokens_wordpiece = ['@'] + tokens_wordpiece
-                if i_t == se:
-                    tokens_wordpiece = tokens_wordpiece + ['@']
-                if i_t == os:
-                    new_os = len(sents)
-                    tokens_wordpiece = ['#'] + tokens_wordpiece
-                if i_t == oe:
-                    tokens_wordpiece = tokens_wordpiece + ['#']
+                elif input_format == 'typed_entity_marker':
+                    if i_t == ss:
+                        new_ss = len(sents)
+                        tokens_wordpiece = [subj_start] + tokens_wordpiece
+                    if i_t == se:
+                        tokens_wordpiece = tokens_wordpiece + [subj_end]
+                    if i_t == os:
+                        new_os = len(sents)
+                        tokens_wordpiece = [obj_start] + tokens_wordpiece
+                    if i_t == oe:
+                        tokens_wordpiece = tokens_wordpiece + [obj_end]
 
-            elif input_format == 'typed_entity_marker':
-                if i_t == ss:
-                    new_ss = len(sents)
-                    tokens_wordpiece = [subj_start] + tokens_wordpiece
-                if i_t == se:
-                    tokens_wordpiece = tokens_wordpiece + [subj_end]
-                if i_t == os:
-                    new_os = len(sents)
-                    tokens_wordpiece = [obj_start] + tokens_wordpiece
-                if i_t == oe:
-                    tokens_wordpiece = tokens_wordpiece + [obj_end]
+                elif input_format == 'typed_entity_marker_punct':
+                    if i_t == ss:
+                        new_ss = len(sents)
+                        tokens_wordpiece = ['@'] + ['*'] + subj_type + ['*'] + tokens_wordpiece
+                    if i_t == se:
+                        tokens_wordpiece = tokens_wordpiece + ['@']
+                    if i_t == os:
+                        new_os = len(sents)
+                        tokens_wordpiece = ["#"] + ['^'] + obj_type + ['^'] + tokens_wordpiece
+                    if i_t == oe:
+                        tokens_wordpiece = tokens_wordpiece + ["#"]
 
-            elif input_format == 'typed_entity_marker_punct':
-                if i_t == ss:
-                    new_ss = len(sents)
-                    tokens_wordpiece = ['@'] + ['*'] + subj_type + ['*'] + tokens_wordpiece
-                if i_t == se:
-                    tokens_wordpiece = tokens_wordpiece + ['@']
-                if i_t == os:
-                    new_os = len(sents)
-                    tokens_wordpiece = ["#"] + ['^'] + obj_type + ['^'] + tokens_wordpiece
-                if i_t == oe:
-                    tokens_wordpiece = tokens_wordpiece + ["#"]
-
-            sents.extend(tokens_wordpiece)
+                sents.extend(tokens_wordpiece)
         sents = sents[:self.args.max_seq_length - 2]
         input_ids = self.tokenizer.convert_tokens_to_ids(sents)
         input_ids = self.tokenizer.build_inputs_with_special_tokens(input_ids)
