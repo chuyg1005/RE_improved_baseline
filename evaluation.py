@@ -1,7 +1,6 @@
 from argparse import ArgumentParser
 import os
-from utils import load4File, loadModel, evaluate
-from model import REModel
+from utils import  evaluate, loadModelAndProcessor
 
 
 def main():
@@ -15,22 +14,17 @@ def main():
                         help="random seed for initialization")
     parser.add_argument("--input_format", default="typed_entity_marker_punct", type=str,
                         help="in [entity_mask, entity_marker, entity_marker_punct, typed_entity_marker, typed_entity_marker_punct]")
+    parser.add_argument("--test_batch_size", default=128, type=int)
+    parser.add_argument("--device", default="cuda", type=str)
 
     args = parser.parse_args()
     save_path = os.path.join(args.ckpt_dir, args.dataset, args.input_format,f"{args.model_name}-{args.seed}")
-    __args = load4File(os.path.join(save_path, "args.pkl"))
-    config = load4File(os.path.join(save_path, "config.pkl"))
-    processor = load4File(os.path.join(save_path, "processor.pkl"))
-
-    # load model
-    model = REModel(__args, config)
-    model.to(0)
-    model.load_state_dict(loadModel(os.path.join(save_path, "best.pth")))
+    model, processor = loadModelAndProcessor(save_path)
 
     eval_file = os.path.join(args.data_root, args.dataset, args.eval_name + ".json")
     eval_features = processor.read(eval_file)
 
-    score = evaluate(__args, model, eval_features)
+    score = evaluate(model, eval_features, args.test_batch_size, args.device)
     print(f"evaluate best model on {args.eval_name}, F1-score: {score:.2f}")
 
 

@@ -4,6 +4,7 @@ import pickle
 import numpy as np
 from torch.utils.data import DataLoader
 import json, os
+from model import REModel
 
 
 def get_f1(key, prediction):
@@ -30,16 +31,16 @@ def set_seed(args):
     if args.n_gpu > 0 and torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
 
-def evaluate(args, model, features):
-    dataloader = DataLoader(features, batch_size=args.test_batch_size, collate_fn=collate_fn, drop_last=False)
+def predict(model, features, test_batch_size, device):
+    dataloader = DataLoader(features, batch_size=test_batch_size, collate_fn=collate_fn, drop_last=False)
     keys, preds = [], []
     for i_b, batch in enumerate(dataloader):
         model.eval()
 
-        inputs = {'input_ids': batch[0].to(args.device),
-                  'attention_mask': batch[1].to(args.device),
-                  'ss': batch[3].to(args.device),
-                  'os': batch[4].to(args.device),
+        inputs = {'input_ids': batch[0].to(device),
+                  'attention_mask': batch[1].to(device),
+                  'ss': batch[3].to(device),
+                  'os': batch[4].to(device),
                   }
         keys += batch[2].tolist()
         with torch.no_grad():
@@ -47,6 +48,10 @@ def evaluate(args, model, features):
             pred = torch.argmax(logit, dim=-1)
         preds += pred.tolist()
 
+    return keys, preds
+
+def evaluate(model, features, test_batch_size, device):
+    keys, preds = predict(model, features, test_batch_size, device)
     keys = np.array(keys, dtype=np.int64)
     preds = np.array(preds, dtype=np.int64)
     _, _, max_f1 = get_f1(keys, preds)
@@ -68,12 +73,22 @@ def collate_fn(batch):
     output = (input_ids, input_mask, labels, ss, os)
     return output
 
-def saveModel(model, filepath):
+def saveModelStateDict(model, filepath):
     torch.save(model.state_dict(), filepath)
 
-def loadModel(filepath):
+def loadModelStateDict(filepath):
     return torch.load(filepath)
 
+def loadModelAndProcessor(save_path):
+    __args = load4File(os.path.join(save_path, "args.pkl"))
+    config = load4File(os.path.join(save_path, "config.pkl"))
+    processor = load4File(os.path.join(save_path, "processor.pkl"))
+
+    # load model
+    model = REModel(__args, config)
+    model.to(0)
+    model.load_state_dict(loadModelStateDict(os.path.join(save_path, "best.pth")))
+    return model, processor
 
 def dump2File(obj, filepath):
     with open(filepath, "wb") as f:

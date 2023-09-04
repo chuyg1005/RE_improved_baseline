@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from transformers import AutoConfig, AutoTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 from utils import set_seed, collate_fn
-from utils import dump2File, saveModel, evaluate
+from utils import dump2File, saveModelStateDict, evaluate
 from prepro import DatasetProcessor
 from model import REModel
 from torch.cuda.amp import GradScaler
@@ -52,14 +52,14 @@ def train(args, model, train_features, benchmarks, save_path, logger):
             logger.add_scalar("Train Loss", loss.item(), num_steps)
 
         for tag, features in benchmarks:
-            f1 = evaluate(args, model, features)
+            f1 = evaluate(model, features, args.test_batch_size, args.device)
             logger.add_scalar(f"F1-score/{tag}", f1, epoch)
             print(f"epoch: {epoch}, F1-score/{tag}: {f1:.2f}")
             # keep save best model on dev dataset
             if tag == "dev" and f1 > best_score:
                 best_score = f1
                 print(f"save best model, f1-score: {best_score:.2f}")
-                saveModel(model, os.path.join(save_path, "best.pth"))
+                saveModelStateDict(model, os.path.join(save_path, "best.pth"))
 
 
 def main():
