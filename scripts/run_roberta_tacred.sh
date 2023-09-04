@@ -2,5 +2,6 @@
 #do python train_tacred.py --model_name_or_path roberta-large --input_format typed_entity_marker_punct --seed $SEED --run_name roberta;
 #done;
 
-SEED=1;
-python train_tacred.py --model_name roberta-large --input_format typed_entity_marker_punct --seed $SEED --run_name roberta;
+SEED=0;
+python train_tacred.py --model_name roberta-base --input_format typed_entity_marker_punct --seed $SEED --dataset tacmock;
+python evaluation.py --model_name roberta-base --input_format typed_entity_marker_punct --seed $SEED --dataset tacmock --eval_name test;

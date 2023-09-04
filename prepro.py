@@ -133,7 +133,7 @@ class Processor:
 class DatasetProcessor(Processor):
     def __init__(self, args, tokenizer):
         super().__init__(args, tokenizer)
-        if args.dataset in {'tacred', 'tacrev'}:
+        if args.dataset in {'tacred', 'tacrev', 'tacmock'}:
             self.LABEL_TO_ID = {'no_relation': 0, 'per:title': 1, 'org:top_members/employees': 2, 'per:employee_of': 3,
                                 'org:alternate_names': 4, 'org:country_of_headquarters': 5,
                                 'per:countries_of_residence': 6, 'org:city_of_headquarters': 7,

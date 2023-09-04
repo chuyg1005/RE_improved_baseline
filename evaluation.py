@@ -1,18 +1,38 @@
-import numpy as np
+from argparse import ArgumentParser
+import os
+from utils import load4File, loadModel, evaluate
+from model import REModel
 
 
-def get_f1(key, prediction):
-    correct_by_relation = ((key == prediction) & (prediction != 0)).astype(np.int32).sum()
-    guessed_by_relation = (prediction != 0).astype(np.int32).sum()
-    gold_by_relation = (key != 0).astype(np.int32).sum()
+def main():
+    parser = ArgumentParser()
+    parser.add_argument("--data_root", default="./data", type=str)
+    parser.add_argument("--dataset", required=True, type=str)
+    parser.add_argument("--eval_name", required=True, type=str)
+    parser.add_argument("--ckpt_dir", default="./ckpts", type=str)
+    parser.add_argument("--model_name", default="roberta-large", type=str)
+    parser.add_argument("--seed", type=int, default=0,
+                        help="random seed for initialization")
+    parser.add_argument("--input_format", default="typed_entity_marker_punct", type=str,
+                        help="in [entity_mask, entity_marker, entity_marker_punct, typed_entity_marker, typed_entity_marker_punct]")
 
-    prec_micro = 1.0
-    if guessed_by_relation > 0:
-        prec_micro = float(correct_by_relation) / float(guessed_by_relation)
-    recall_micro = 1.0
-    if gold_by_relation > 0:
-        recall_micro = float(correct_by_relation) / float(gold_by_relation)
-    f1_micro = 0.0
-    if prec_micro + recall_micro > 0.0:
-        f1_micro = 2.0 * prec_micro * recall_micro / (prec_micro + recall_micro)
-    return prec_micro, recall_micro, f1_micro
+    args = parser.parse_args()
+    save_path = os.path.join(args.ckpt_dir, args.dataset, args.input_format,f"{args.model_name}-{args.seed}")
+    __args = load4File(os.path.join(save_path, "args.pkl"))
+    config = load4File(os.path.join(save_path, "config.pkl"))
+    processor = load4File(os.path.join(save_path, "processor.pkl"))
+
+    # load model
+    model = REModel(__args, config)
+    model.to(0)
+    model.load_state_dict(loadModel(os.path.join(save_path, "best.pth")))
+
+    eval_file = os.path.join(args.data_root, args.dataset, args.eval_name + ".json")
+    eval_features = processor.read(eval_file)
+
+    score = evaluate(__args, model, eval_features)
+    print(f"evaluate best model on {args.eval_name}, F1-score: {score:.2f}")
+
+
+if __name__ == '__main__':
+    main()

@@ -8,7 +8,8 @@ class REModel(nn.Module):
     def __init__(self, args, config):
         super().__init__()
         self.args = args
-        self.encoder = AutoModel.from_pretrained(args.model_name_or_path, config=config)
+        self.encoder = AutoModel.from_pretrained(args.model_name, config=config)
+        self.encoder.resize_token_embeddings(config.num_tokens)
         hidden_size = config.hidden_size
         self.loss_fnt = nn.CrossEntropyLoss()
         self.classifier = nn.Sequential(
