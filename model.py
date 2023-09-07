@@ -20,9 +20,15 @@ class REModel(nn.Module):
         )
 
     def compute_loss(self, input_ids=None, attention_mask=None, labels=None, ss=None, os=None):
-        logits = self(input_ids, attention_mask, ss, os)
+        logits = self(input_ids, attention_mask, ss, os).float()
         if self.args.mode == "default":
-            loss = F.cross_entropy(logits.float(), labels)
+            loss = F.cross_entropy(logits, labels)
+        elif self.args.mode == "RDrop":
+            loss = F.cross_entropy(logits, labels)
+            logits_p, logits_q = torch.chunk(logits, chunks=2, dim=0)
+            regular_loss = (F.kl_div(F.log_softmax(logits_p, dim=-1),F.softmax(logits_q, dim=-1), reduction="batchmean")
+                            + F.kl_div(F.log_softmax(logits_q, dim=-1), F.softmax(logits_p, dim=-1), reduction="batchmean")) * 0.5
+            return loss + 1.0 * regular_loss
         else:
             assert 0
         return loss

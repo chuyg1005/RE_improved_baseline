@@ -8,6 +8,7 @@ def main():
     parser.add_argument("--data_root", default="./data", type=str)
     parser.add_argument("--dataset", required=True, type=str)
     parser.add_argument("--eval_name", required=True, type=str)
+    parser.add_argument("--mode", required=True, type=str)
     parser.add_argument("--ckpt_dir", default="./ckpts", type=str)
     parser.add_argument("--model_name", default="roberta-large", type=str)
     parser.add_argument("--seed", type=int, default=0,
@@ -21,7 +22,7 @@ def main():
     eval_data = json.load(open(eval_file, "r"))
 
     def predictByInputFormat(input_format):
-        save_path = os.path.join(args.ckpt_dir, args.dataset, input_format, f"{args.model_name}-{args.seed}")
+        save_path = os.path.join(args.ckpt_dir, args.dataset, input_format, f"{args.model_name}-{args.mode}-{args.seed}")
         model, processor = loadModelAndProcessor(save_path)
         eval_features = processor.read(eval_file)
         keys, preds = predict(model, eval_features, args.test_batch_size, args.device)

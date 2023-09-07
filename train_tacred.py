@@ -106,14 +106,14 @@ def main():
 
     args = parser.parse_args()
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     args.n_gpu = torch.cuda.device_count()
     args.device = device
     if args.seed > 0:
         set_seed(args)
 
-    save_path = os.path.join(args.ckpt_dir, args.dataset, args.input_format, f"{args.model_name}-{args.seed}")
-    log_dir = os.path.join(args.log_dir, args.project_name, args.dataset, args.input_format, f"{args.model_name}-{args.seed}")
+    save_path = os.path.join(args.ckpt_dir, args.dataset, args.input_format, f"{args.model_name}-{args.mode}-{args.seed}")
+    log_dir = os.path.join(args.log_dir, args.project_name, args.dataset, args.input_format, f"{args.model_name}-{args.mode}-{args.seed}")
 
     if os.path.exists(log_dir): shutil.rmtree(log_dir) # 删除历史日志
     os.makedirs(save_path, exist_ok=True)
