@@ -4,10 +4,11 @@
 export CUDA_VISIBLE_DEVICES=$1;
 INPUT_FORMAT=$2;
 MODE=$3;
+TRAIN_NAME=$4;
 
 SEED=0;
 DATASET=tacred;
-python train_tacred.py --model_name bert-base-cased --input_format $INPUT_FORMAT --seed $SEED --dataset $DATASET --mode $MODE;
+python train_tacred.py --model_name bert-base-cased --input_format $INPUT_FORMAT --seed $SEED --dataset $DATASET --mode $MODE --train_name $TRAIN_NAME;
 
 #python evaluation.py --model_name roberta-base --input_format typed_entity_marker_punct --seed $SEED --dataset tacmock --eval_name test;
-#python gen_adv_dataset.py --model_name bert-base-cased --dataset tacred --eval_name test --seed 0;
+#python gen_challege_dataset.py --model_name bert-base-cased --dataset tacred --eval_name test --seed 0;

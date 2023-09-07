@@ -103,6 +103,7 @@ def main():
     parser.add_argument("--log_dir", type=str, default="./logs")
 
     parser.add_argument("--mode", type=str, default="default")
+    parser.add_argument("--train_name", type=str, default="train")
 
     args = parser.parse_args()
 
@@ -131,7 +132,7 @@ def main():
     )
 
     data_dir = os.path.join(args.data_root, args.dataset)
-    train_file = os.path.join(data_dir, "train.json")
+    train_file = os.path.join(data_dir, f"{args.train_name}.json")
     dev_file = os.path.join(data_dir, "dev.json")
     test_file = os.path.join(data_dir, "test.json")
 

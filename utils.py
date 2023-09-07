@@ -32,7 +32,7 @@ def set_seed(args):
         torch.cuda.manual_seed_all(args.seed)
 
 def predict(model, features, test_batch_size, device):
-    dataloader = DataLoader(features, batch_size=test_batch_size, collate_fn=get_collate_fn(), drop_last=False)
+    dataloader = DataLoader(features, batch_size=test_batch_size, collate_fn=get_collate_fn(), drop_last=False, shuffle=False)
     keys, preds = [], []
     for i_b, batch in enumerate(dataloader):
         model.eval()
@@ -61,6 +61,8 @@ def evaluate(model, features, test_batch_size, device):
 def get_collate_fn(mode="default"):
     if mode == 'RDrop':
         return RDrop_collate_fn
+    elif mode == 'DataAug':
+        return DataAug_collate_fn
     else:
         return default_collate_fn
 
@@ -80,6 +82,12 @@ def default_collate_fn(batch):
     output = (input_ids, input_mask, labels, ss, os)
     return output
 
+def DataAug_collate_fn(batch):
+    assert type(batch) is list
+    batch_org = [f[0] for f in batch]
+    batch_aug = [random.choice(f[1:]) for f in batch]
+    return default_collate_fn(batch_org + batch_aug)
+
 def RDrop_collate_fn(batch):
     max_len = max([len(f["input_ids"]) for f in batch])
     input_ids = [f["input_ids"] + [0] * (max_len - len(f["input_ids"])) for f in batch]
@@ -98,18 +106,18 @@ def RDrop_collate_fn(batch):
 def saveModelStateDict(model, filepath):
     torch.save(model.state_dict(), filepath)
 
-def loadModelStateDict(filepath):
-    return torch.load(filepath)
+def loadModelStateDict(filepath, device):
+    return torch.load(filepath, map_location=device)
 
-def loadModelAndProcessor(save_path):
+def loadModelAndProcessor(save_path, device):
     __args = load4File(os.path.join(save_path, "args.pkl"))
     config = load4File(os.path.join(save_path, "config.pkl"))
     processor = load4File(os.path.join(save_path, "processor.pkl"))
 
     # load model
     model = REModel(__args, config)
-    model.to(0)
-    model.load_state_dict(loadModelStateDict(os.path.join(save_path, "best.pth")))
+    model.to(device)
+    model.load_state_dict(loadModelStateDict(os.path.join(save_path, "best.pth"), device))
     return model, processor
 
 def dump2File(obj, filepath):

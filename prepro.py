@@ -200,16 +200,21 @@ class DatasetProcessor(Processor):
             'os': new_os,
         }
         return feature
-
-    def read(self, file_in):
+    def encode(self, data, show_bar=True):
         features = []
-        with open(file_in, "r") as fh:
-            data = json.load(fh)
-
-        for d in tqdm(data):
+        if show_bar: data = tqdm(data)
+        for d in data:
             if type(d) is list:
                 feature = list(map(self.encode_feature, d))
             else:
                 feature = self.encode_feature(d)
             features.append(feature)
         return features
+
+    def read(self, file_in):
+        with open(file_in, "r") as fh:
+            data = json.load(fh)
+
+        features = self.encode(data)
+        return features
+
