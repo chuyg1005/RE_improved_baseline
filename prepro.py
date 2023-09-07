@@ -183,27 +183,33 @@ class DatasetProcessor(Processor):
                                 'per:country_of_birth': 36, 'per:date_of_birth': 37, 'per:cities_of_residence': 38,
                                 'per:city_of_birth': 39}
 
+    def encode_feature(self, d):
+        ss, se = d['subj_start'], d['subj_end']
+        os, oe = d['obj_start'], d['obj_end']
+
+        tokens = d['token']
+        tokens = [convert_token(token) for token in tokens]
+
+        input_ids, new_ss, new_os = self.tokenize(tokens, d['subj_type'], d['obj_type'], ss, se, os, oe)
+        rel = self.LABEL_TO_ID[d['relation']]
+
+        feature = {
+            'input_ids': input_ids,
+            'labels': rel,
+            'ss': new_ss,
+            'os': new_os,
+        }
+        return feature
+
     def read(self, file_in):
         features = []
         with open(file_in, "r") as fh:
             data = json.load(fh)
 
         for d in tqdm(data):
-            ss, se = d['subj_start'], d['subj_end']
-            os, oe = d['obj_start'], d['obj_end']
-
-            tokens = d['token']
-            tokens = [convert_token(token) for token in tokens]
-
-            input_ids, new_ss, new_os = self.tokenize(tokens, d['subj_type'], d['obj_type'], ss, se, os, oe)
-            rel = self.LABEL_TO_ID[d['relation']]
-
-            feature = {
-                'input_ids': input_ids,
-                'labels': rel,
-                'ss': new_ss,
-                'os': new_os,
-            }
-
+            if type(d) is list:
+                feature = list(map(self.encode_feature, d))
+            else:
+                feature = self.encode_feature(d)
             features.append(feature)
         return features

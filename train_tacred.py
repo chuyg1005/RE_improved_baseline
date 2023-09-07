@@ -7,7 +7,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from transformers import AutoConfig, AutoTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
-from utils import set_seed, collate_fn
+from utils import set_seed, get_collate_fn
 from utils import dump2File, saveModelStateDict, evaluate
 from prepro import DatasetProcessor
 from model import REModel
@@ -16,7 +16,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 def train(args, model, train_features, benchmarks, save_path, logger):
-    train_dataloader = DataLoader(train_features, batch_size=args.train_batch_size, shuffle=True, collate_fn=collate_fn, drop_last=True)
+    train_dataloader = DataLoader(train_features, batch_size=args.train_batch_size, shuffle=True, collate_fn=get_collate_fn(args.mode), drop_last=True)
     total_steps = len(train_dataloader) * args.num_train_epochs
     warmup_steps = int(total_steps * args.warmup_ratio)
 
@@ -39,8 +39,7 @@ def train(args, model, train_features, benchmarks, save_path, logger):
                       'ss': batch[3].to(args.device),
                       'os': batch[4].to(args.device),
                       }
-            outputs = model(**inputs)
-            loss = outputs[0]
+            loss = model.compute_loss(**inputs)
             scaler.scale(loss).backward()
             if args.max_grad_norm > 0:
                 scaler.unscale_(optimizer)
@@ -103,6 +102,8 @@ def main():
     parser.add_argument("--project_name", type=str, default="RE_baseline")
     parser.add_argument("--log_dir", type=str, default="./logs")
 
+    parser.add_argument("--mode", type=str, default="default")
+
     args = parser.parse_args()
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -148,7 +149,7 @@ def main():
     dump2File(processor, os.path.join(save_path, "processor.pkl"))
 
     model = REModel(args, config)
-    model.to(0)
+    model.to(args.device)
 
     benchmarks = (
         ("dev", dev_features),

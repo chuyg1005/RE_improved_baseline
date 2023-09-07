@@ -32,7 +32,7 @@ def set_seed(args):
         torch.cuda.manual_seed_all(args.seed)
 
 def predict(model, features, test_batch_size, device):
-    dataloader = DataLoader(features, batch_size=test_batch_size, collate_fn=collate_fn, drop_last=False)
+    dataloader = DataLoader(features, batch_size=test_batch_size, collate_fn=get_collate_fn(), drop_last=False)
     keys, preds = [], []
     for i_b, batch in enumerate(dataloader):
         model.eval()
@@ -44,7 +44,7 @@ def predict(model, features, test_batch_size, device):
                   }
         keys += batch[2].tolist()
         with torch.no_grad():
-            logit = model(**inputs)[0]
+            logit = model(**inputs) # predict results
             pred = torch.argmax(logit, dim=-1)
         preds += pred.tolist()
 
@@ -58,7 +58,14 @@ def evaluate(model, features, test_batch_size, device):
 
     return max_f1 * 100
 
-def collate_fn(batch):
+def get_collate_fn(mode="default"):
+    if mode == 'RDrop':
+        return None
+    else:
+        return default_collate_fn
+
+
+def default_collate_fn(batch):
     max_len = max([len(f["input_ids"]) for f in batch])
     input_ids = [f["input_ids"] + [0] * (max_len - len(f["input_ids"])) for f in batch]
     input_mask = [[1.0] * len(f["input_ids"]) + [0.0] * (max_len - len(f["input_ids"])) for f in batch]
