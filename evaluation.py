@@ -1,5 +1,5 @@
-from argparse import ArgumentParser
 import os
+from argparse import ArgumentParser
 from utils import  evaluate, loadModelAndProcessor
 
 
