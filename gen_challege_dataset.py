@@ -31,29 +31,34 @@ def main():
     keys1, entityPreds = predictByInputFormat("typed_entity_name_punct") # entity-only
     keys2, contextPreds = predictByInputFormat("entity_mask") # context-only
 
-    data1 = []
-    data2 = []
-    data3 = []
-    data4 = []
+    # data1 = []
+    # data2 = []
+    # data3 = []
+    # data4 = []
+    challenge_data = []
 
     for i in range(len(keys1)):
-        if entityPreds[i] != keys1[i] and contextPreds[i] == keys1[i]: # 上下文正确但是实体名称错误
-            data1.append(eval_data[i])
-        if entityPreds[i] == keys1[i] and contextPreds[i] != keys1[i]: # 实体名称正确但是上下文错误
-            data2.append(eval_data[i])
-        if entityPreds[i] != keys1[i] and contextPreds[i] != keys1[i]: # 二者都做不对
-            data3.append(eval_data[i])
-        if entityPreds[i] == keys1[i] and contextPreds[i] == keys1[i]: # 二者都能做对, 简单样本
-            data4.append(eval_data[i])
+        if entityPreds[i] != keys1[i]:
+            challenge_data.append(eval_data[i])
+        # if entityPreds[i] != keys1[i] and contextPreds[i] == keys1[i]: # 上下文正确但是实体名称错误
+        #     data1.append(eval_data[i])
+        # if entityPreds[i] == keys1[i] and contextPreds[i] != keys1[i]: # 实体名称正确但是上下文错误
+        #     data2.append(eval_data[i])
+        # if entityPreds[i] != keys1[i] and contextPreds[i] != keys1[i]: # 二者都做不对
+        #     data3.append(eval_data[i])
+        # if entityPreds[i] == keys1[i] and contextPreds[i] == keys1[i]: # 二者都能做对, 简单样本
+        #     data4.append(eval_data[i])
 
-    with open(os.path.join(args.data_root, args.dataset, f"{args.eval_name}_data1.json"), "w") as f:
-        json.dump(data1, f)
-    with open(os.path.join(args.data_root, args.dataset, f"{args.eval_name}_data2.json"), "w") as f:
-        json.dump(data2, f)
-    with open(os.path.join(args.data_root, args.dataset, f"{args.eval_name}_data3.json"), "w") as f:
-        json.dump(data3, f)
-    with open(os.path.join(args.data_root, args.dataset, f"{args.eval_name}_data4.json"), "w") as f:
-        json.dump(data4, f)
+    with open(os.path.join(args.data_root, args.dataset, f"{args.eval_name}_challenge.json"), "w") as f:
+        json.dump(challenge_data, f)
+    # with open(os.path.join(args.data_root, args.dataset, f"{args.eval_name}_data1.json"), "w") as f:
+    #     json.dump(data1, f)
+    # with open(os.path.join(args.data_root, args.dataset, f"{args.eval_name}_data2.json"), "w") as f:
+    #     json.dump(data2, f)
+    # with open(os.path.join(args.data_root, args.dataset, f"{args.eval_name}_data3.json"), "w") as f:
+    #     json.dump(data3, f)
+    # with open(os.path.join(args.data_root, args.dataset, f"{args.eval_name}_data4.json"), "w") as f:
+    #     json.dump(data4, f)
 
 if __name__ == '__main__':
     main()

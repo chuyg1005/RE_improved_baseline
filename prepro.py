@@ -33,18 +33,27 @@ class Processor:
 
     def encode_typed_entity_name_punct(self, tokens, subj_type, obj_type, ss, se, os, oe):
         sents = []
-        new_ss = 0
         subj_type = self.tokenizer.tokenize(subj_type.replace("_", " ").lower())
         obj_type = self.tokenizer.tokenize(obj_type.replace("_", " ").lower())
-        subj_tokens = ['@'] + ['*'] + subj_type + ['*'] + tokens[ss:se+1] + ['@']
-        obj_tokens = ['#'] + ['^'] + obj_type + ['^'] + tokens[os:oe+1] + ['#']
+        subj_spans, obj_spans = [], []
+        for token in tokens[ss:se+1]:
+            subj_spans.extend(self.tokenizer.tokenize(token))
+        for token in tokens[os:oe+1]:
+            obj_spans.extend(self.tokenizer.tokenize(token))
+        subj_tokens = ['@'] + ['*'] + subj_type + ['*'] + subj_spans + ['@']
+        obj_tokens = ['#'] + ['^'] + obj_type + ['^'] + obj_spans + ['#']
 
+        new_ss = 0
         sents.extend(subj_tokens)
+        new_se = len(sents) - 1
+
         sents.extend(['and'])
+
         new_os = len(sents)
         sents.extend(obj_tokens)
+        new_oe = len(sents) - 1
 
-        return sents, new_ss, new_os
+        return sents, new_ss, new_se, new_os, new_oe
 
 
     def tokenize(self, tokens, subj_type, obj_type, ss, se, os, oe):
@@ -55,6 +64,16 @@ class Processor:
             - entity_marker_punct: @ subject @, # object #.
             - typed_entity_marker: [SUBJ-NER] subject [/SUBJ-NER], [OBJ-NER] obj [/OBJ-NER]
             - typed_entity_marker_punct: @ * subject ner type * subject @, # ^ object ner type ^ object #
+            - typed_entity_name_punct:
+
+            * Bob[person] was born in Washington[city].
+            * entity name only: bob and washington
+            * entity type only: person and washington
+            * entity context only: [subj] was born in [obj]
+            * entity name + entity type: bob[person] and Washington[city]
+            * entity context + entity type: [person] was bon in [city]
+            * entity context + entity name: bob was born in washington
+            * entity context + entity type + entity name: bob[person] was born in washington
         """
         sents = []
         input_format = self.args.input_format
@@ -79,7 +98,7 @@ class Processor:
             obj_type = self.tokenizer.tokenize(obj_type.replace("_", " ").lower())
 
         if input_format == 'typed_entity_name_punct':
-            sents, new_ss, new_os = self.encode_typed_entity_name_punct(tokens, subj_type, obj_type, ss, se, os, oe)
+            sents, new_ss, new_se, new_os, new_oe = self.encode_typed_entity_name_punct(tokens, subj_type, obj_type, ss, se, os, oe)
         else:
             for i_t, token in enumerate(tokens):
                 tokens_wordpiece = self.tokenizer.tokenize(token)
@@ -143,10 +162,15 @@ class Processor:
                         tokens_wordpiece = tokens_wordpiece + ["#"]
 
                 sents.extend(tokens_wordpiece)
+
+                if i_t == se:
+                    new_se = len(sents) - 1
+                if i_t == oe:
+                    new_oe = len(sents) - 1
         sents = sents[:self.args.max_seq_length - 2]
         input_ids = self.tokenizer.convert_tokens_to_ids(sents)
         input_ids = self.tokenizer.build_inputs_with_special_tokens(input_ids)
-        return input_ids, new_ss + 1, new_os + 1
+        return input_ids, new_ss + 1, new_se + 1, new_os + 1, new_oe + 1
 
 
 class DatasetProcessor(Processor):
@@ -190,14 +214,16 @@ class DatasetProcessor(Processor):
         tokens = d['token']
         tokens = [convert_token(token) for token in tokens]
 
-        input_ids, new_ss, new_os = self.tokenize(tokens, d['subj_type'], d['obj_type'], ss, se, os, oe)
+        input_ids, new_ss, new_se, new_os, new_oe = self.tokenize(tokens, d['subj_type'], d['obj_type'], ss, se, os, oe)
         rel = self.LABEL_TO_ID[d['relation']]
 
         feature = {
             'input_ids': input_ids,
             'labels': rel,
             'ss': new_ss,
+            'se': new_se,
             'os': new_os,
+            'oe': new_oe
         }
         return feature
     def encode(self, data, show_bar=True):

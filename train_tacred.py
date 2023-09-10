@@ -15,8 +15,8 @@ from torch.cuda.amp import GradScaler
 from torch.utils.tensorboard import SummaryWriter
 
 
-def train(args, model, train_features, benchmarks, save_path, logger):
-    train_dataloader = DataLoader(train_features, batch_size=args.train_batch_size, shuffle=True, collate_fn=get_collate_fn(args.mode), drop_last=True)
+def train(args, model, train_features, benchmarks, save_path, logger, tokenizer):
+    train_dataloader = DataLoader(train_features, batch_size=args.train_batch_size, shuffle=False, collate_fn=get_collate_fn(args.mode, tokenizer), drop_last=True)
     total_steps = len(train_dataloader) * args.num_train_epochs
     warmup_steps = int(total_steps * args.warmup_ratio)
 
@@ -135,11 +135,13 @@ def main():
     train_file = os.path.join(data_dir, f"{args.train_name}.json")
     dev_file = os.path.join(data_dir, "dev.json")
     test_file = os.path.join(data_dir, "test.json")
+    challenge_file = os.path.join(data_dir, "test_challenge.json")
 
     processor = DatasetProcessor(args, tokenizer)
     train_features = processor.read(train_file)
     dev_features = processor.read(dev_file)
     test_features = processor.read(test_file)
+    challenge_features = processor.read(challenge_file)
 
     config.num_tokens = len(tokenizer)
 
@@ -155,9 +157,10 @@ def main():
     benchmarks = (
         ("dev", dev_features),
         ("test", test_features),
+        ("challenge", challenge_features)
     )
 
-    train(args, model, train_features, benchmarks, save_path, writer)
+    train(args, model, train_features, benchmarks, save_path, writer, tokenizer)
 
 
 if __name__ == "__main__":

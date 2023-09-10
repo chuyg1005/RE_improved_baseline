@@ -70,6 +70,37 @@ def substitute_item_with_new_entities(item, new_subj, new_obj):
 
     return new_item
 
+def gen_dfl_dataset(filedir):
+    filepath = os.path.join(filedir, "train.json")
+    if not os.path.exists(filepath):
+        print(f"{filepath} not exists.")
+        assert 0
+    with open(filepath, "r") as f:
+        data = json.load(f)
+    aug_data = []
+    for item in tqdm(data):
+        new_item = copy.deepcopy(item)
+
+        tokens = item["token"]
+        ss, se = item["subj_start"], item["subj_end"]
+        _os, oe = item["obj_start"], item["obj_end"]
+        subj_span, obj_span = tokens[ss:se+1], tokens[_os:oe+1]
+
+        new_item["token"] = subj_span + obj_span # 删除and
+        new_item["subj_start"] = 0
+        new_item["subj_end"] = len(subj_span) - 1
+        new_item["obj_start"] = len(subj_span)
+        new_item["obj_end"] = len(subj_span) + len(obj_span) - 1
+
+        # 丢弃实体类型信息
+        # new_item["subj_type"] = "SUBJ_TYPE"
+        # new_item["obj_type"] = "OBJ_TYPE"
+        #
+        aug_data.append([item, new_item])
+
+    with open(os.path.join(filedir, f"train-dfl.json"), "w") as f:
+        json.dump(aug_data, f)
+
 def gen_aug_dataset(filedir, k):
     filepath = os.path.join(filedir, "train.json")
     if not os.path.exists(filepath):
@@ -107,7 +138,8 @@ def main():
     random.seed(args.seed)
 
     filedir = os.path.join(args.data_root, args.dataset)
-    gen_aug_dataset(filedir, args.k)
+    # gen_aug_dataset(filedir, args.k)
+    gen_dfl_dataset(filedir)
 
 if __name__ == '__main__':
     main()

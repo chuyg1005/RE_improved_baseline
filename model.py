@@ -21,13 +21,30 @@ class REModel(nn.Module):
 
     def compute_loss(self, input_ids=None, attention_mask=None, labels=None, ss=None, os=None):
         logits = self(input_ids, attention_mask, ss, os).float()
-        if self.args.mode == "RDrop":
+        if self.args.mode in {"RDrop", "RSwitch"}:
             loss = F.cross_entropy(logits, labels)
             logits_p, logits_q = torch.chunk(logits, chunks=2, dim=0)
+            # labels_p, labels_q = torch.chunk(labels, chunks=2, dim=0)
+            # loss = F.cross_entropy(logits_p, labels_p)
             regular_loss = (F.kl_div(F.log_softmax(logits_p, dim=-1),F.softmax(logits_q, dim=-1), reduction="batchmean")
                             + F.kl_div(F.log_softmax(logits_q, dim=-1), F.softmax(logits_p, dim=-1), reduction="batchmean")) * 0.5
             return loss + 1.0 * regular_loss
-        else: # self.args.mode == "default"
+        elif self.args.mode == "DFocal":
+            GAMMA = 2
+            TEMPERATURE = 5
+            logits_p, logits_q = torch.chunk(logits, chunks=2, dim=0)
+            labels_p, labels_q = torch.chunk(labels, chunks=2, dim=0)
+            # 计算概率
+            probs_q = F.softmax(logits_q / TEMPERATURE, dim=-1)
+            label_probs_q = torch.gather(probs_q, 1, labels_q.view(-1, 1)).view(-1).detach()
+
+            # print(labels_p.numel())
+            # 计算加权损失
+            losses = F.cross_entropy(logits_p, labels_p, reduction="none")
+            weights = torch.pow(1 - label_probs_q, GAMMA)
+            loss = torch.dot(losses, weights)  / labels_p.numel()
+            # loss = torch.log(loss) # 对损失进行自归一化
+        else: # self.args.mode in {"default", "DataAug"}
             loss = F.cross_entropy(logits, labels)
         return loss
 

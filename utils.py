@@ -1,3 +1,5 @@
+import copy
+
 import torch
 import random
 import pickle
@@ -32,7 +34,7 @@ def set_seed(args):
         torch.cuda.manual_seed_all(args.seed)
 
 def predict(model, features, test_batch_size, device):
-    dataloader = DataLoader(features, batch_size=test_batch_size, collate_fn=get_collate_fn(), drop_last=False, shuffle=False)
+    dataloader = DataLoader(features, batch_size=test_batch_size, collate_fn=default_collate_fn, drop_last=False, shuffle=False)
     keys, preds = [], []
     for i_b, batch in enumerate(dataloader):
         model.eval()
@@ -58,11 +60,13 @@ def evaluate(model, features, test_batch_size, device):
 
     return max_f1 * 100
 
-def get_collate_fn(mode="default"):
+def get_collate_fn(mode="default", tokenizer=None):
     if mode == 'RDrop':
         return RDrop_collate_fn
-    elif mode == 'DataAug':
+    elif mode in {'DataAug', 'RSwitch'}:
         return DataAug_collate_fn
+    elif mode == "DFocal":
+        return get_DFocal_collate_fn(tokenizer)
     else:
         return default_collate_fn
 
@@ -81,6 +85,25 @@ def default_collate_fn(batch):
     os = torch.tensor(os, dtype=torch.long)
     output = (input_ids, input_mask, labels, ss, os)
     return output
+
+def get_DFocal_collate_fn(tokenizer):
+    # batch1 = [f[0] for f in batch]
+    # batch2 = [f[1] for f in batch]
+    # return default_collate_fn(batch1 + batch2)
+    sep_ids = tokenizer.encode(" ", add_special_tokens=False)
+    def DFocal_collate_fn(batch):
+        new_batch = []
+        for item in batch:
+            new_item = {'labels': item['labels']}
+            input_ids = item['input_ids']
+            ss, se = item['ss'], item['se']
+            os, oe = item['os'], item['oe']
+            new_item['input_ids'] = [input_ids[0]] + input_ids[ss:se+1] + sep_ids + input_ids[os:oe+1] + [input_ids[-1]]
+            new_item['ss'] = 1
+            new_item['os'] = 1 + (se + 1 - ss) + len(sep_ids)
+            new_batch.append(new_item)
+        return default_collate_fn(batch + new_batch)
+    return DFocal_collate_fn
 
 def DataAug_collate_fn(batch):
     assert type(batch) is list
