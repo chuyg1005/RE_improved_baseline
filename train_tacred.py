@@ -16,8 +16,8 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 def train(args, model, train_features, benchmarks, save_path, logger, tokenizer):
-    train_dataloader = DataLoader(train_features, batch_size=args.train_batch_size, shuffle=False, collate_fn=get_collate_fn(args.mode, tokenizer), drop_last=True)
-    total_steps = len(train_dataloader) * args.num_train_epochs
+    train_dataloader = DataLoader(train_features, batch_size=args.train_batch_size, shuffle=True, collate_fn=get_collate_fn(args.mode, tokenizer), drop_last=True)
+    total_steps = int(len(train_dataloader) * args.num_train_epochs // args.gradient_accumulation_steps)
     warmup_steps = int(total_steps * args.warmup_ratio)
 
     scaler = GradScaler()
@@ -31,7 +31,6 @@ def train(args, model, train_features, benchmarks, save_path, logger, tokenizer)
     for epoch in range(int(args.num_train_epochs)):
         model.zero_grad()
         for step, batch in enumerate(tqdm(train_dataloader)):
-            num_steps += 1
             model.train()
             inputs = {'input_ids': batch[0].to(args.device),
                       'attention_mask': batch[1].to(args.device),
@@ -39,16 +38,18 @@ def train(args, model, train_features, benchmarks, save_path, logger, tokenizer)
                       'ss': batch[3].to(args.device),
                       'os': batch[4].to(args.device),
                       }
-            loss = model.compute_loss(**inputs)
+            loss = model.compute_loss(**inputs) / args.gradient_accumulation_steps
             scaler.scale(loss).backward()
-            if args.max_grad_norm > 0:
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
-            scaler.step(optimizer)
-            scaler.update()
-            scheduler.step()
-            model.zero_grad()
-            logger.add_scalar("Train Loss", loss.item(), num_steps)
+            if step % args.gradient_accumulation_steps == 0:
+                num_steps += 1
+                if args.max_grad_norm > 0:
+                    scaler.unscale_(optimizer)
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+                scaler.step(optimizer)
+                scaler.update()
+                scheduler.step()
+                model.zero_grad()
+                logger.add_scalar("Train Loss", loss.item(), num_steps)
 
         for tag, features in benchmarks:
             f1 = evaluate(model, features, args.test_batch_size, args.device)
@@ -86,6 +87,8 @@ def main():
                         help="Batch size for testing.")
     parser.add_argument("--learning_rate", default=3e-5, type=float,
                         help="The initial learning rate for Adam.")
+    parser.add_argument("--gradient_accumulation_steps", default=1, type=int,
+                        help="Number of updates steps to accumulate the gradients for, before performing a backward/update pass.")
     parser.add_argument("--adam_epsilon", default=1e-6, type=float,
                         help="Epsilon for Adam optimizer.")
     parser.add_argument("--max_grad_norm", default=1.0, type=float,
@@ -110,7 +113,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     args.n_gpu = torch.cuda.device_count()
     args.device = device
-    if args.seed > 0:
+    if args.seed >= 0:
         set_seed(args)
 
     save_path = os.path.join(args.ckpt_dir, args.dataset, args.input_format, f"{args.model_name}-{args.mode}-{args.seed}")

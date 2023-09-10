@@ -31,7 +31,7 @@ class REModel(nn.Module):
             return loss + 1.0 * regular_loss
         elif self.args.mode == "DFocal":
             GAMMA = 2
-            TEMPERATURE = 5
+            TEMPERATURE = 10
             logits_p, logits_q = torch.chunk(logits, chunks=2, dim=0)
             labels_p, labels_q = torch.chunk(labels, chunks=2, dim=0)
             # 计算概率

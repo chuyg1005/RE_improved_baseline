@@ -47,7 +47,7 @@ class Processor:
         sents.extend(subj_tokens)
         new_se = len(sents) - 1
 
-        sents.extend(['and'])
+        sents.extend(self.tokenizer.tokenize('and'))
 
         new_os = len(sents)
         sents.extend(obj_tokens)
