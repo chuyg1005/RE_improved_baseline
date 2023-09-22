@@ -22,14 +22,15 @@ def main():
     eval_data = json.load(open(eval_file, "r"))
 
     def predictByInputFormat(input_format):
-        save_path = os.path.join(args.ckpt_dir, args.dataset, input_format, f"{args.model_name}-{args.mode}-{args.seed}")
+        save_path = os.path.join(args.ckpt_dir, args.dataset, input_format,
+                                 f"{args.model_name}-{args.mode}-train-{args.seed}")
         model, processor = loadModelAndProcessor(save_path, args.device)
         eval_features = processor.read(eval_file)
         keys, preds = predict(model, eval_features, args.test_batch_size, args.device)
         return keys, preds
 
-    keys1, entityPreds = predictByInputFormat("typed_entity_name_punct") # entity-only
-    keys2, contextPreds = predictByInputFormat("entity_mask") # context-only
+    keys1, entityPreds = predictByInputFormat("typed_entity_name_punct")  # entity-only
+    keys2, contextPreds = predictByInputFormat("entity_mask")  # context-only
 
     # data1 = []
     # data2 = []
@@ -38,7 +39,7 @@ def main():
     challenge_data = []
 
     for i in range(len(keys1)):
-        if entityPreds[i] != keys1[i]:
+        if entityPreds[i] != keys1[i] and contextPreds[i] == keys1[i]:
             challenge_data.append(eval_data[i])
         # if entityPreds[i] != keys1[i] and contextPreds[i] == keys1[i]: # 上下文正确但是实体名称错误
         #     data1.append(eval_data[i])
@@ -59,6 +60,7 @@ def main():
     #     json.dump(data3, f)
     # with open(os.path.join(args.data_root, args.dataset, f"{args.eval_name}_data4.json"), "w") as f:
     #     json.dump(data4, f)
+
 
 if __name__ == '__main__':
     main()

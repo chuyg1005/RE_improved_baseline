@@ -88,7 +88,8 @@ def main():
     parser.add_argument("--learning_rate", default=3e-5, type=float,
                         help="The initial learning rate for Adam.")
     parser.add_argument("--gradient_accumulation_steps", default=1, type=int,
-                        help="Number of updates steps to accumulate the gradients for, before performing a backward/update pass.")
+                        help="Number of updates steps to accumulate the gradients for, before performing a "
+                             "backward/update pass.")
     parser.add_argument("--adam_epsilon", default=1e-6, type=float,
                         help="Epsilon for Adam optimizer.")
     parser.add_argument("--max_grad_norm", default=1.0, type=float,
@@ -99,7 +100,6 @@ def main():
                         help="Total number of training epochs to perform.")
     parser.add_argument("--seed", type=int, default=0,
                         help="random seed for initialization")
-    parser.add_argument("--num_class", type=int, default=42)
 
     parser.add_argument("--dropout_prob", type=float, default=0.1)
     parser.add_argument("--project_name", type=str, default="RE_baseline")
@@ -116,8 +116,8 @@ def main():
     if args.seed >= 0:
         set_seed(args)
 
-    save_path = os.path.join(args.ckpt_dir, args.dataset, args.input_format, f"{args.model_name}-{args.mode}-{args.seed}")
-    log_dir = os.path.join(args.log_dir, args.project_name, args.dataset, args.input_format, f"{args.model_name}-{args.mode}-{args.seed}")
+    save_path = os.path.join(args.ckpt_dir, args.dataset, args.input_format, f"{args.model_name}-{args.mode}-{args.train_name}-{args.seed}")
+    log_dir = os.path.join(args.log_dir, args.project_name, args.dataset, args.input_format, f"{args.model_name}-{args.mode}-{args.train_name}-{args.seed}")
 
     if os.path.exists(log_dir): shutil.rmtree(log_dir) # 删除历史日志
     os.makedirs(save_path, exist_ok=True)
@@ -125,11 +125,6 @@ def main():
 
     writer = SummaryWriter(log_dir)
 
-    config = AutoConfig.from_pretrained(
-        args.config_name if args.config_name else args.model_name,
-        num_labels=args.num_class,
-    )
-    config.gradient_checkpointing = True
     tokenizer = AutoTokenizer.from_pretrained(
         args.tokenizer_name if args.tokenizer_name else args.model_name,
     )
@@ -146,6 +141,12 @@ def main():
     test_features = processor.read(test_file)
     challenge_features = processor.read(challenge_file)
 
+    args.num_class = processor.get_num_class()
+    config = AutoConfig.from_pretrained(
+        args.config_name if args.config_name else args.model_name,
+        num_labels=args.num_class,
+    )
+    config.gradient_checkpointing = True
     config.num_tokens = len(tokenizer)
 
     # 保存args / config / tokenizer

@@ -33,9 +33,12 @@ def set_seed(args):
     if args.n_gpu > 0 and torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
 
-def predict(model, features, test_batch_size, device):
-    dataloader = DataLoader(features, batch_size=test_batch_size, collate_fn=default_collate_fn, drop_last=False, shuffle=False)
+
+def predict(model, features, test_batch_size, device, withProbs=False):
+    dataloader = DataLoader(features, batch_size=test_batch_size, collate_fn=default_collate_fn, drop_last=False,
+                            shuffle=False)
     keys, preds = [], []
+    probs = []
     for i_b, batch in enumerate(dataloader):
         model.eval()
 
@@ -46,11 +49,18 @@ def predict(model, features, test_batch_size, device):
                   }
         keys += batch[2].tolist()
         with torch.no_grad():
-            logit = model(**inputs) # predict results
-            pred = torch.argmax(logit, dim=-1)
+            logit = model(**inputs)  # predict results
+            prob = torch.softmax(logit, dim=1)
+            # 获取prob
+            prob, pred = torch.max(prob, dim=1)
         preds += pred.tolist()
+        probs += prob.tolist()
 
-    return keys, preds
+    if not withProbs:
+        return keys, preds
+    else:
+        return keys, preds, probs
+
 
 def evaluate(model, features, test_batch_size, device):
     keys, preds = predict(model, features, test_batch_size, device)
@@ -60,6 +70,7 @@ def evaluate(model, features, test_batch_size, device):
 
     return max_f1 * 100
 
+
 def get_collate_fn(mode="default", tokenizer=None):
     if mode == 'RDrop':
         return RDrop_collate_fn
@@ -67,6 +78,8 @@ def get_collate_fn(mode="default", tokenizer=None):
         return DataAug_collate_fn
     elif mode == "DFocal":
         return get_DFocal_collate_fn(tokenizer)
+    elif mode in {'DataAugDFocal'}:
+        return get_DataAugDFocal_collate_fn(tokenizer)
     else:
         return default_collate_fn
 
@@ -86,11 +99,38 @@ def default_collate_fn(batch):
     output = (input_ids, input_mask, labels, ss, os)
     return output
 
+
+def get_DataAugDFocal_collate_fn(tokenizer):
+    """data augmentation with debiased focal"""
+    sep_ids = tokenizer.encode(" ", add_special_tokens=False)
+
+    def DataAugDFocal_collate_fn(batch):
+        batch_org = [f[0] for f in batch]
+        batch_aug = [random.choice(f[1:]) for f in batch]
+        batch = batch_org + batch_aug
+        # print(batch)
+        new_batch = []
+        for item in batch:
+            new_item = {'labels': item['labels']}
+            input_ids = item['input_ids']
+            ss, se = item['ss'], item['se']
+            os, oe = item['os'], item['oe']
+            new_item['input_ids'] = [input_ids[0]] + input_ids[ss:se + 1] + sep_ids + input_ids[os:oe + 1] + [
+                input_ids[-1]]
+            new_item['ss'] = 1
+            new_item['os'] = 1 + (se + 1 - ss) + len(sep_ids)
+            new_batch.append(new_item)
+        return default_collate_fn(batch + new_batch)
+
+    return DataAugDFocal_collate_fn
+
+
 def get_DFocal_collate_fn(tokenizer):
     # batch1 = [f[0] for f in batch]
     # batch2 = [f[1] for f in batch]
     # return default_collate_fn(batch1 + batch2)
     sep_ids = tokenizer.encode(" ", add_special_tokens=False)
+
     def DFocal_collate_fn(batch):
         new_batch = []
         for item in batch:
@@ -98,18 +138,22 @@ def get_DFocal_collate_fn(tokenizer):
             input_ids = item['input_ids']
             ss, se = item['ss'], item['se']
             os, oe = item['os'], item['oe']
-            new_item['input_ids'] = [input_ids[0]] + input_ids[ss:se+1] + sep_ids + input_ids[os:oe+1] + [input_ids[-1]]
+            new_item['input_ids'] = [input_ids[0]] + input_ids[ss:se + 1] + sep_ids + input_ids[os:oe + 1] + [
+                input_ids[-1]]
             new_item['ss'] = 1
             new_item['os'] = 1 + (se + 1 - ss) + len(sep_ids)
             new_batch.append(new_item)
         return default_collate_fn(batch + new_batch)
+
     return DFocal_collate_fn
+
 
 def DataAug_collate_fn(batch):
     assert type(batch) is list
     batch_org = [f[0] for f in batch]
     batch_aug = [random.choice(f[1:]) for f in batch]
     return default_collate_fn(batch_org + batch_aug)
+
 
 def RDrop_collate_fn(batch):
     max_len = max([len(f["input_ids"]) for f in batch])
@@ -126,11 +170,14 @@ def RDrop_collate_fn(batch):
     output = (input_ids, input_mask, labels, ss, os)
     return output
 
+
 def saveModelStateDict(model, filepath):
     torch.save(model.state_dict(), filepath)
 
+
 def loadModelStateDict(filepath, device):
     return torch.load(filepath, map_location=device)
+
 
 def loadModelAndProcessor(save_path, device):
     __args = load4File(os.path.join(save_path, "args.pkl"))
@@ -142,6 +189,7 @@ def loadModelAndProcessor(save_path, device):
     model.to(device)
     model.load_state_dict(loadModelStateDict(os.path.join(save_path, "best.pth"), device))
     return model, processor
+
 
 def dump2File(obj, filepath):
     with open(filepath, "wb") as f:
@@ -163,6 +211,7 @@ def genMockData():
     with open(os.path.join(data_dir, "train.json"), "w") as f: json.dump(data[:10240], f)
     with open(os.path.join(data_dir, "dev.json"), "w") as f: json.dump(data[:64], f)
     with open(os.path.join(data_dir, "test.json"), "w") as f: json.dump(data[:64], f)
+
 
 if __name__ == '__main__':
     genMockData()

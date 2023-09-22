@@ -28,7 +28,10 @@ class Processor:
         if self.args.input_format == 'entity_marker':
             self.new_tokens = ['[E1]', '[/E1]', '[E2]', '[/E2]']
         self.tokenizer.add_tokens(self.new_tokens)
-        if self.args.input_format not in ('entity_mask', 'entity_marker', 'entity_marker_punct', 'typed_entity_marker', 'typed_entity_marker_punct', 'typed_entity_name_punct'):
+        if self.args.input_format not in (
+                'entity_mask', 'entity_marker', 'entity_marker_punct', 'typed_entity_marker',
+                'typed_entity_marker_punct',
+                'typed_entity_name_punct'):
             raise Exception("Invalid input format!")
 
     def encode_typed_entity_name_punct(self, tokens, subj_type, obj_type, ss, se, os, oe):
@@ -36,9 +39,9 @@ class Processor:
         subj_type = self.tokenizer.tokenize(subj_type.replace("_", " ").lower())
         obj_type = self.tokenizer.tokenize(obj_type.replace("_", " ").lower())
         subj_spans, obj_spans = [], []
-        for token in tokens[ss:se+1]:
+        for token in tokens[ss:se + 1]:
             subj_spans.extend(self.tokenizer.tokenize(token))
-        for token in tokens[os:oe+1]:
+        for token in tokens[os:oe + 1]:
             obj_spans.extend(self.tokenizer.tokenize(token))
         subj_tokens = ['@'] + ['*'] + subj_type + ['*'] + subj_spans + ['@']
         obj_tokens = ['#'] + ['^'] + obj_type + ['^'] + obj_spans + ['#']
@@ -54,7 +57,6 @@ class Processor:
         new_oe = len(sents) - 1
 
         return sents, new_ss, new_se, new_os, new_oe
-
 
     def tokenize(self, tokens, subj_type, obj_type, ss, se, os, oe):
         """
@@ -98,7 +100,8 @@ class Processor:
             obj_type = self.tokenizer.tokenize(obj_type.replace("_", " ").lower())
 
         if input_format == 'typed_entity_name_punct':
-            sents, new_ss, new_se, new_os, new_oe = self.encode_typed_entity_name_punct(tokens, subj_type, obj_type, ss, se, os, oe)
+            sents, new_ss, new_se, new_os, new_oe = self.encode_typed_entity_name_punct(tokens, subj_type, obj_type, ss,
+                                                                                        se, os, oe)
         else:
             for i_t, token in enumerate(tokens):
                 tokens_wordpiece = self.tokenizer.tokenize(token)
@@ -207,6 +210,9 @@ class DatasetProcessor(Processor):
                                 'per:country_of_birth': 36, 'per:date_of_birth': 37, 'per:cities_of_residence': 38,
                                 'per:city_of_birth': 39}
 
+    def get_num_class(self):
+        return len(self.LABEL_TO_ID)
+
     def encode_feature(self, d):
         ss, se = d['subj_start'], d['subj_end']
         os, oe = d['obj_start'], d['obj_end']
@@ -226,6 +232,7 @@ class DatasetProcessor(Processor):
             'oe': new_oe
         }
         return feature
+
     def encode(self, data, show_bar=True):
         features = []
         if show_bar: data = tqdm(data)
@@ -243,4 +250,3 @@ class DatasetProcessor(Processor):
 
         features = self.encode(data)
         return features
-
