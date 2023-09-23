@@ -78,7 +78,7 @@ def get_collate_fn(mode="default", tokenizer=None):
         return DataAug_collate_fn
     elif mode == "DFocal":
         return get_DFocal_collate_fn(tokenizer)
-    elif mode in {'DataAugDFocal'}:
+    elif mode in {'DataAugDFocal', 'RSwitchDFocal'}:
         return get_DataAugDFocal_collate_fn(tokenizer)
     else:
         return default_collate_fn

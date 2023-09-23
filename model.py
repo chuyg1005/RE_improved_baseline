@@ -31,8 +31,8 @@ class REModel(nn.Module):
                                      reduction="batchmean")
                             + F.kl_div(F.log_softmax(logits_q, dim=-1), F.softmax(logits_p, dim=-1),
                                        reduction="batchmean")) * 0.5
-            return loss + 1.0 * regular_loss
-        elif self.args.mode in {"DFocal", "DataAugDFocal"}:  # 数据增强和debiased focal一起使用
+            loss += 1.0 * regular_loss
+        elif self.args.mode in {"DFocal", "DataAugDFocal", "RSwitchDFocal"}:  # 数据增强和debiased focal一起使用
             GAMMA = 2
             TEMPERATURE = 10
             logits_p, logits_q = torch.chunk(logits, chunks=2, dim=0)
@@ -41,11 +41,20 @@ class REModel(nn.Module):
             probs_q = F.softmax(logits_q / TEMPERATURE, dim=-1)
             label_probs_q = torch.gather(probs_q, 1, labels_q.view(-1, 1)).view(-1).detach()
 
+            # print(label_probs_q)
             # print(labels_p.numel())
             # 计算加权损失
             losses = F.cross_entropy(logits_p, labels_p, reduction="none")
             weights = torch.pow(1 - label_probs_q, GAMMA)
             loss = torch.dot(losses, weights) / labels_p.numel()
+            # 增加正则化损失
+            if self.args.mode == "RSwitchDFocal":
+                logits_1, logits_2 = torch.chunk(logits_p, chunks=2, dim=0)
+                regular_loss = (F.kl_div(F.log_softmax(logits_1, dim=-1), F.softmax(logits_2, dim=-1),
+                                         reduction="batchmean")
+                                + F.kl_div(F.log_softmax(logits_2, dim=-1), F.softmax(logits_1, dim=-1),
+                                           reduction="batchmean")) * 0.5
+                loss += 1.0 * regular_loss
             # loss = torch.log(loss) # 对损失进行自归一化
         else:  # self.args.mode in {"default", "DataAug"}
             loss = F.cross_entropy(logits, labels)
