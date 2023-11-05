@@ -1,3 +1,3 @@
-ln -s /home/data_91_d/chuyg/ckpts ckpts
-ln -s /home/data_91_d/chuyg/data-new data
-ln -s /home/data_91_d/chuyg/logs logs
+ln -s /home/nfs02/chuyg/advRE/RE_improved_baseline/ckpts ckpts
+ln -s /home/nfs02/chuyg/advRE/RE_improved_baseline/data data
+ln -s /home/nfs02/chuyg/advRE/RE_improved_baseline/logs logs

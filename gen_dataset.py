@@ -136,7 +136,7 @@ def gen_adv_dataset(filedir, k):
         features = processor.encode(candidates, show_bar=False)
         _, _, probs = predict(model, features, len(candidates), device, withProbs=True)
         # 按照Probs降序排列，获取indices
-        indices = sorted(range(len(probs)), key=lambda i: probs[i], reverse=True)
+        indices = sorted(range(len(probs)), key=lambda i: probs[i], reverse=False)
         candidates = [candidates[idx] for idx in indices]
         aug_item += candidates[:k]
         aug_data.append(aug_item)
@@ -178,14 +178,18 @@ def main():
     parser.add_argument("--dataset", required=True, type=str)
     parser.add_argument("--k", default=5, type=int)
     parser.add_argument("--seed", default=0, type=int)
+    parser.add_argument("--mode", default='adv', type=str)
     args = parser.parse_args()
 
     random.seed(args.seed)
 
     filedir = os.path.join(args.data_root, args.dataset)
     # gen_aug_dataset(filedir, args.k)
-    gen_adv_dataset(filedir, args.k)
-    # gen_dfl_dataset(filedir)
+    if args.mode == 'adv':
+        gen_adv_dataset(filedir, args.k)
+    else:
+        gen_aug_dataset(filedir, args.k)
+        # gen_dfl_dataset(filedir)
 
 
 if __name__ == '__main__':

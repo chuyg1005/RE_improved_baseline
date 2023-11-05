@@ -39,7 +39,8 @@ def main():
     challenge_data = []
 
     for i in range(len(keys1)):
-        if entityPreds[i] != keys1[i] and contextPreds[i] == keys1[i]:
+        if entityPreds[i] != keys1[i]:
+            # if entityPreds[i] != keys1[i] and contextPreds[i] == keys1[i]:
             challenge_data.append(eval_data[i])
         # if entityPreds[i] != keys1[i] and contextPreds[i] == keys1[i]: # 上下文正确但是实体名称错误
         #     data1.append(eval_data[i])

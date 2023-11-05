@@ -1,6 +1,7 @@
 import os
 from argparse import ArgumentParser
-from utils import  evaluate, loadModelAndProcessor
+from utils import evaluate, loadModelAndProcessor
+import numpy as np
 
 
 def main():
@@ -8,25 +9,35 @@ def main():
     parser.add_argument("--data_root", default="./data", type=str)
     parser.add_argument("--dataset", required=True, type=str)
     parser.add_argument("--eval_name", required=True, type=str)
+    parser.add_argument("--split", required=True, type=str)
+    parser.add_argument("--test_split", required=True, type=str)
     parser.add_argument("--ckpt_dir", default="./ckpts", type=str)
     parser.add_argument("--model_name", default="bert-base-cased", type=str)
-    parser.add_argument("--seed", type=int, default=0,
+    parser.add_argument("--seed", type=int, default=42,
                         help="random seed for initialization")
+    parser.add_argument("--train_name", default="train")
     parser.add_argument("--input_format", default="typed_entity_marker_punct", type=str,
                         help="in [entity_mask, entity_marker, entity_marker_punct, typed_entity_marker, typed_entity_marker_punct]")
     parser.add_argument("--mode", default="default", type=str)
     parser.add_argument("--test_batch_size", default=128, type=int)
     parser.add_argument("--device", default="cuda", type=str)
+    parser.add_argument("--save_predict", action="store_true", help="save prediction results")
 
     args = parser.parse_args()
-    save_path = os.path.join(args.ckpt_dir, args.dataset, args.input_format,f"{args.model_name}-{args.mode}-{args.seed}")
+    save_path = os.path.join(args.ckpt_dir, args.dataset, args.input_format, args.split,
+                             f"{args.model_name}-{args.mode}-{args.train_name}-{args.seed}")
     model, processor = loadModelAndProcessor(save_path, args.device)
 
-    eval_file = os.path.join(args.data_root, args.dataset, args.eval_name + ".json")
+    eval_file = os.path.join(args.data_root, args.dataset, args.test_split, args.eval_name + ".json")
+    save_file = os.path.join(args.data_root, args.dataset, args.test_split, args.eval_name + ".pred.npy")
     eval_features = processor.read(eval_file)
 
-    score = evaluate(model, eval_features, args.test_batch_size, args.device)
+    score, result = evaluate(model, eval_features, args.test_batch_size, args.device, return_result=True)
     print(f"evaluate best model on {args.eval_name}, F1-score: {score:.2f}")
+
+    if args.save_predict:
+        np.save(save_file, result)
+        print(f"save prediction results to {save_file}")
 
 
 if __name__ == '__main__':

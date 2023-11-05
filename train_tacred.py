@@ -16,13 +16,15 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 def train(args, model, train_features, benchmarks, save_path, logger, tokenizer):
-    train_dataloader = DataLoader(train_features, batch_size=args.train_batch_size, shuffle=True, collate_fn=get_collate_fn(args.mode, tokenizer), drop_last=True)
+    train_dataloader = DataLoader(train_features, batch_size=args.train_batch_size, shuffle=True,
+                                  collate_fn=get_collate_fn(args.mode, tokenizer), drop_last=True)
     total_steps = int(len(train_dataloader) * args.num_train_epochs // args.gradient_accumulation_steps)
     warmup_steps = int(total_steps * args.warmup_ratio)
 
     scaler = GradScaler()
     optimizer = AdamW(model.parameters(), lr=args.learning_rate, eps=args.adam_epsilon)
-    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
+    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps,
+                                                num_training_steps=total_steps)
     print('Total steps: {}'.format(total_steps))
     print('Warmup steps: {}'.format(warmup_steps))
 
@@ -37,6 +39,7 @@ def train(args, model, train_features, benchmarks, save_path, logger, tokenizer)
                       'labels': batch[2].to(args.device),
                       'ss': batch[3].to(args.device),
                       'os': batch[4].to(args.device),
+                      'power': 1 - num_steps / total_steps,
                       }
             loss = model.compute_loss(**inputs) / args.gradient_accumulation_steps
             scaler.scale(loss).backward()
@@ -66,6 +69,7 @@ def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--data_root", default="./data", type=str)
+    parser.add_argument("--split", default="origin", type=str)
     parser.add_argument("--dataset", required=True, type=str)
     parser.add_argument("--model_name", default="roberta-large", type=str)
     parser.add_argument("--input_format", default="typed_entity_marker_punct", type=str,
@@ -116,10 +120,12 @@ def main():
     if args.seed >= 0:
         set_seed(args)
 
-    save_path = os.path.join(args.ckpt_dir, args.dataset, args.input_format, f"{args.model_name}-{args.mode}-{args.train_name}-{args.seed}")
-    log_dir = os.path.join(args.log_dir, args.project_name, args.dataset, args.input_format, f"{args.model_name}-{args.mode}-{args.train_name}-{args.seed}")
+    save_path = os.path.join(args.ckpt_dir, args.dataset, args.input_format, args.split,
+                             f"{args.model_name}-{args.mode}-{args.train_name}-{args.seed}")
+    log_dir = os.path.join(args.log_dir, args.project_name, args.dataset, args.input_format, args.split,
+                           f"{args.model_name}-{args.mode}-{args.train_name}-{args.seed}")
 
-    if os.path.exists(log_dir): shutil.rmtree(log_dir) # 删除历史日志
+    if os.path.exists(log_dir): shutil.rmtree(log_dir)  # 删除历史日志
     os.makedirs(save_path, exist_ok=True)
     os.makedirs(log_dir, exist_ok=True)
 
@@ -129,17 +135,17 @@ def main():
         args.tokenizer_name if args.tokenizer_name else args.model_name,
     )
 
-    data_dir = os.path.join(args.data_root, args.dataset)
+    data_dir = os.path.join(args.data_root, args.dataset, args.split)
     train_file = os.path.join(data_dir, f"{args.train_name}.json")
     dev_file = os.path.join(data_dir, "dev.json")
     test_file = os.path.join(data_dir, "test.json")
-    challenge_file = os.path.join(data_dir, "test_challenge.json")
+    test_challenge_file = os.path.join(data_dir, 'test_challenge.json')
 
     processor = DatasetProcessor(args, tokenizer)
     train_features = processor.read(train_file)
     dev_features = processor.read(dev_file)
     test_features = processor.read(test_file)
-    challenge_features = processor.read(challenge_file)
+    test_challenge_features = processor.read(test_challenge_file)
 
     args.num_class = processor.get_num_class()
     config = AutoConfig.from_pretrained(
@@ -161,7 +167,7 @@ def main():
     benchmarks = (
         ("dev", dev_features),
         ("test", test_features),
-        ("challenge", challenge_features)
+        ("test_challenge", test_challenge_features),
     )
 
     train(args, model, train_features, benchmarks, save_path, writer, tokenizer)

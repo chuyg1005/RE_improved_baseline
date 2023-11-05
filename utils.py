@@ -62,13 +62,18 @@ def predict(model, features, test_batch_size, device, withProbs=False):
         return keys, preds, probs
 
 
-def evaluate(model, features, test_batch_size, device):
+def evaluate(model, features, test_batch_size, device, return_result=False):
     keys, preds = predict(model, features, test_batch_size, device)
     keys = np.array(keys, dtype=np.int64)
     preds = np.array(preds, dtype=np.int64)
     _, _, max_f1 = get_f1(keys, preds)
 
-    return max_f1 * 100
+    result = np.hstack((keys.reshape(-1, 1), preds.reshape(-1, 1)))
+
+    if return_result:
+        return max_f1 * 100, result
+    else:
+        return max_f1 * 100
 
 
 def get_collate_fn(mode="default", tokenizer=None):
@@ -76,8 +81,11 @@ def get_collate_fn(mode="default", tokenizer=None):
         return RDrop_collate_fn
     elif mode in {'DataAug', 'RSwitch'}:
         return DataAug_collate_fn
-    elif mode == "DFocal":
-        return get_DFocal_collate_fn(tokenizer)
+    elif mode in {"DFocal", "PoE"}:
+        # return get_DFocal_collate_fn(tokenizer)
+        return DFocal_collate_fn
+    elif mode in {'MixDebias'}:
+        return MixDebias_collate_fn
     elif mode in {'DataAugDFocal', 'RSwitchDFocal'}:
         return get_DataAugDFocal_collate_fn(tokenizer)
     else:
@@ -125,28 +133,43 @@ def get_DataAugDFocal_collate_fn(tokenizer):
     return DataAugDFocal_collate_fn
 
 
-def get_DFocal_collate_fn(tokenizer):
-    # batch1 = [f[0] for f in batch]
-    # batch2 = [f[1] for f in batch]
-    # return default_collate_fn(batch1 + batch2)
-    sep_ids = tokenizer.encode(" ", add_special_tokens=False)
+def DFocal_collate_fn(batch):
+    assert type(batch) is list
+    batch_org = [f[0] for f in batch]
+    batch_aug = [f[1] for f in batch]
+    return default_collate_fn(batch_org + batch_aug)
 
-    def DFocal_collate_fn(batch):
-        new_batch = []
-        for item in batch:
-            new_item = {'labels': item['labels']}
-            input_ids = item['input_ids']
-            ss, se = item['ss'], item['se']
-            os, oe = item['os'], item['oe']
-            new_item['input_ids'] = [input_ids[0]] + input_ids[ss:se + 1] + sep_ids + input_ids[os:oe + 1] + [
-                input_ids[-1]]
-            new_item['ss'] = 1
-            new_item['os'] = 1 + (se + 1 - ss) + len(sep_ids)
-            new_batch.append(new_item)
-        return default_collate_fn(batch + new_batch)
 
-    return DFocal_collate_fn
+def MixDebias_collate_fn(batch):
+    assert type(batch) is list
+    batch_org = [f[0] for f in batch]
+    batch_aug = [random.choice(f[1:-1]) for f in batch]
+    batch_eo = [f[-1] for f in batch]
+    return default_collate_fn(batch_org + batch_aug + batch_eo)
 
+
+# def get_DFocal_collate_fn(tokenizer):
+#     # batch1 = [f[0] for f in batch]
+#     # batch2 = [f[1] for f in batch]
+#     # return default_collate_fn(batch1 + batch2)
+#     sep_ids = tokenizer.encode(" ", add_special_tokens=False)
+#
+#     def DFocal_collate_fn(batch):
+#         new_batch = []
+#         for item in batch:
+#             new_item = {'labels': item['labels']}
+#             input_ids = item['input_ids']
+#             ss, se = item['ss'], item['se']
+#             os, oe = item['os'], item['oe']
+#             new_item['input_ids'] = [input_ids[0]] + input_ids[ss:se + 1] + sep_ids + input_ids[os:oe + 1] + [
+#                 input_ids[-1]]
+#             new_item['ss'] = 1
+#             new_item['os'] = 1 + (se + 1 - ss) + len(sep_ids)
+#             new_batch.append(new_item)
+#         return default_collate_fn(batch + new_batch)
+#
+#     return DFocal_collate_fn
+#
 
 def DataAug_collate_fn(batch):
     assert type(batch) is list
