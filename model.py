@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from transformers import AutoModel
 from torch.cuda.amp import autocast
-import os
 
 
 class REModel(nn.Module):

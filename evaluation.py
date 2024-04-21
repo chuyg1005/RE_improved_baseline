@@ -1,7 +1,8 @@
 import os
 from argparse import ArgumentParser
-from utils import evaluate, loadModelAndProcessor
+from utils import evaluate, loadModel
 import numpy as np, json
+from prepro import DatasetProcessor
 
 
 def main():
@@ -21,7 +22,8 @@ def main():
 
     model_name = f'{args.mode}-{args.seed}'
     model_path = os.path.join(args.ckpt_dir, args.dataset, model_name)
-    model, processor = loadModelAndProcessor(model_path, args.device)
+    model, tokenizer, model_args = loadModel(model_path, args.device)
+    processor = DatasetProcessor(model_args, tokenizer)
     label2id = processor.LABEL_TO_ID
 
     eval_file = os.path.join(args.data_root, args.dataset, args.eval_name + ".json")

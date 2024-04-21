@@ -179,36 +179,7 @@ class Processor:
 class DatasetProcessor(Processor):
     def __init__(self, args, tokenizer):
         super().__init__(args, tokenizer)
-        if args.dataset in {'tacred', 'tacrev', 'tacmock'}:
-            self.LABEL_TO_ID = {'no_relation': 0, 'per:title': 1, 'org:top_members/employees': 2, 'per:employee_of': 3,
-                                'org:alternate_names': 4, 'org:country_of_headquarters': 5,
-                                'per:countries_of_residence': 6, 'org:city_of_headquarters': 7,
-                                'per:cities_of_residence': 8, 'per:age': 9, 'per:stateorprovinces_of_residence': 10,
-                                'per:origin': 11, 'org:subsidiaries': 12, 'org:parents': 13, 'per:spouse': 14,
-                                'org:stateorprovince_of_headquarters': 15, 'per:children': 16, 'per:other_family': 17,
-                                'per:alternate_names': 18, 'org:members': 19, 'per:siblings': 20,
-                                'per:schools_attended': 21, 'per:parents': 22, 'per:date_of_death': 23,
-                                'org:member_of': 24, 'org:founded_by': 25, 'org:website': 26, 'per:cause_of_death': 27,
-                                'org:political/religious_affiliation': 28, 'org:founded': 29, 'per:city_of_death': 30,
-                                'org:shareholders': 31, 'org:number_of_employees/members': 32, 'per:date_of_birth': 33,
-                                'per:city_of_birth': 34, 'per:charges': 35, 'per:stateorprovince_of_death': 36,
-                                'per:religion': 37, 'per:stateorprovince_of_birth': 38, 'per:country_of_birth': 39,
-                                'org:dissolved': 40, 'per:country_of_death': 41}
-        elif args.dataset == 'retacred':
-            self.LABEL_TO_ID = {'no_relation': 0, 'org:founded_by': 1, 'per:identity': 2, 'org:alternate_names': 3,
-                                'per:children': 4, 'per:origin': 5, 'per:countries_of_residence': 6,
-                                'per:employee_of': 7, 'per:title': 8, 'org:city_of_branch': 9, 'per:religion': 10,
-                                'per:age': 11, 'per:date_of_death': 12, 'org:website': 13,
-                                'per:stateorprovinces_of_residence': 14, 'org:top_members/employees': 15,
-                                'org:number_of_employees/members': 16, 'org:members': 17, 'org:country_of_branch': 18,
-                                'per:spouse': 19, 'org:stateorprovince_of_branch': 20,
-                                'org:political/religious_affiliation': 21, 'org:member_of': 22, 'per:siblings': 23,
-                                'per:stateorprovince_of_birth': 24, 'org:dissolved': 25, 'per:other_family': 26,
-                                'org:shareholders': 27, 'per:parents': 28, 'per:charges': 29,
-                                'per:schools_attended': 30, 'per:cause_of_death': 31, 'per:city_of_death': 32,
-                                'per:stateorprovince_of_death': 33, 'org:founded': 34, 'per:country_of_death': 35,
-                                'per:country_of_birth': 36, 'per:date_of_birth': 37, 'per:cities_of_residence': 38,
-                                'per:city_of_birth': 39}
+        self.LABEL_TO_ID = get_label_to_id(args.dataset)
 
     def get_num_class(self):
         return len(self.LABEL_TO_ID)
@@ -250,3 +221,40 @@ class DatasetProcessor(Processor):
 
         features = self.encode(data)
         return features
+
+
+def get_label_to_id(dataset):
+    if dataset in {'tacred', 'tacrev', 'tacmock'}:
+        LABEL_TO_ID = {'no_relation': 0, 'per:title': 1, 'org:top_members/employees': 2, 'per:employee_of': 3,
+                       'org:alternate_names': 4, 'org:country_of_headquarters': 5,
+                       'per:countries_of_residence': 6, 'org:city_of_headquarters': 7,
+                       'per:cities_of_residence': 8, 'per:age': 9, 'per:stateorprovinces_of_residence': 10,
+                       'per:origin': 11, 'org:subsidiaries': 12, 'org:parents': 13, 'per:spouse': 14,
+                       'org:stateorprovince_of_headquarters': 15, 'per:children': 16, 'per:other_family': 17,
+                       'per:alternate_names': 18, 'org:members': 19, 'per:siblings': 20,
+                       'per:schools_attended': 21, 'per:parents': 22, 'per:date_of_death': 23,
+                       'org:member_of': 24, 'org:founded_by': 25, 'org:website': 26, 'per:cause_of_death': 27,
+                       'org:political/religious_affiliation': 28, 'org:founded': 29, 'per:city_of_death': 30,
+                       'org:shareholders': 31, 'org:number_of_employees/members': 32, 'per:date_of_birth': 33,
+                       'per:city_of_birth': 34, 'per:charges': 35, 'per:stateorprovince_of_death': 36,
+                       'per:religion': 37, 'per:stateorprovince_of_birth': 38, 'per:country_of_birth': 39,
+                       'org:dissolved': 40, 'per:country_of_death': 41}
+    elif dataset == 'retacred':
+        LABEL_TO_ID = {'no_relation': 0, 'org:founded_by': 1, 'per:identity': 2, 'org:alternate_names': 3,
+                       'per:children': 4, 'per:origin': 5, 'per:countries_of_residence': 6,
+                       'per:employee_of': 7, 'per:title': 8, 'org:city_of_branch': 9, 'per:religion': 10,
+                       'per:age': 11, 'per:date_of_death': 12, 'org:website': 13,
+                       'per:stateorprovinces_of_residence': 14, 'org:top_members/employees': 15,
+                       'org:number_of_employees/members': 16, 'org:members': 17, 'org:country_of_branch': 18,
+                       'per:spouse': 19, 'org:stateorprovince_of_branch': 20,
+                       'org:political/religious_affiliation': 21, 'org:member_of': 22, 'per:siblings': 23,
+                       'per:stateorprovince_of_birth': 24, 'org:dissolved': 25, 'per:other_family': 26,
+                       'org:shareholders': 27, 'per:parents': 28, 'per:charges': 29,
+                       'per:schools_attended': 30, 'per:cause_of_death': 31, 'per:city_of_death': 32,
+                       'per:stateorprovince_of_death': 33, 'org:founded': 34, 'per:country_of_death': 35,
+                       'per:country_of_birth': 36, 'per:date_of_birth': 37, 'per:cities_of_residence': 38,
+                       'per:city_of_birth': 39}
+    else:
+        assert 0, f'Unknown dataset: {dataset}'
+
+    return LABEL_TO_ID

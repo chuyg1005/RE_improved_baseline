@@ -1,10 +1,11 @@
 import torch
 import random
-import pickle
 import numpy as np
 from torch.utils.data import DataLoader
+from transformers import AutoConfig, AutoTokenizer
 import json, os
 from model import REModel
+from types import SimpleNamespace
 
 
 def get_f1(key, prediction):
@@ -103,38 +104,6 @@ def default_collate_fn(batch):
     return output
 
 
-# def get_DataAugDFocal_collate_fn(tokenizer):
-#     """data augmentation with debiased focal"""
-#     sep_ids = tokenizer.encode(" ", add_special_tokens=False)
-#
-#     def DataAugDFocal_collate_fn(batch):
-#         batch_org = [f[0] for f in batch]
-#         batch_aug = [random.choice(f[1:]) for f in batch]
-#         batch = batch_org + batch_aug
-#         # print(batch)
-#         new_batch = []
-#         for item in batch:
-#             new_item = {'labels': item['labels']}
-#             input_ids = item['input_ids']
-#             ss, se = item['ss'], item['se']
-#             os, oe = item['os'], item['oe']
-#             new_item['input_ids'] = [input_ids[0]] + input_ids[ss:se + 1] + sep_ids + input_ids[os:oe + 1] + [
-#                 input_ids[-1]]
-#             new_item['ss'] = 1
-#             new_item['os'] = 1 + (se + 1 - ss) + len(sep_ids)
-#             new_batch.append(new_item)
-#         return default_collate_fn(batch + new_batch)
-#
-#     return DataAugDFocal_collate_fn
-#
-
-# def DFocal_collate_fn(batch):
-#     assert type(batch) is list
-#     batch_org = [f[0] for f in batch]
-#     batch_aug = [f[1] for f in batch]
-#     return default_collate_fn(batch_org + batch_aug)
-#
-
 def get_MixDebias_collate_fn(mode):
     print("get MixDebias collate_fn with mode: ", mode)
 
@@ -171,30 +140,38 @@ def saveModelStateDict(model, filepath):
     torch.save(model.state_dict(), filepath)
 
 
-def loadModelStateDict(filepath, device):
-    return torch.load(filepath, map_location=device)
+def buildModel(args):
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name)
+    config = AutoConfig.from_pretrained(
+        args.model_name,
+        num_labels=args.num_class,
+    )
+    config.gradient_checkpointing = True
+    config.num_tokens = len(tokenizer)
+    model = REModel(args, config)
+
+    return model, tokenizer
 
 
-def loadModelAndProcessor(save_path, device):
-    __args = load4File(os.path.join(save_path, "args.pkl"))
-    config = load4File(os.path.join(save_path, "config.pkl"))
-    processor = load4File(os.path.join(save_path, "processor.pkl"))
-
-    # load model
-    model = REModel(__args, config)
+def loadModel(save_path, device):
+    args = load4File(os.path.join(save_path, "args.json"))
+    args = SimpleNamespace(**args)
+    model, tokenizer = buildModel(args)
+    model_path = os.path.join(save_path, "best.pth")
+    model.load_state_dict(torch.load(model_path, map_location=device))
     model.to(device)
-    model.load_state_dict(loadModelStateDict(os.path.join(save_path, "best.pth"), device))
-    return model, processor
+
+    return model, tokenizer, args
 
 
 def dump2File(obj, filepath):
-    with open(filepath, "wb") as f:
-        pickle.dump(obj, f)
+    with open(filepath, "w") as f:
+        json.dump(obj, f)
 
 
 def load4File(filepath):
-    with open(filepath, "rb") as f:
-        return pickle.load(f)
+    with open(filepath, "r") as f:
+        return json.load(f)
 
 
 def genMockData():

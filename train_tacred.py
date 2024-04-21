@@ -5,12 +5,10 @@ import shutil
 import torch
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from transformers import AutoConfig, AutoTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 from utils import set_seed, get_collate_fn
-from utils import dump2File, saveModelStateDict, evaluate, load4File
-from prepro import DatasetProcessor
-from model import REModel
+from utils import dump2File, saveModelStateDict, evaluate, load4File, buildModel
+from prepro import DatasetProcessor, get_label_to_id
 from torch.cuda.amp import GradScaler
 from torch.utils.tensorboard import SummaryWriter
 
@@ -92,8 +90,6 @@ def main():
 
     parser.add_argument("--config_name", default="", type=str,
                         help="Pretrained config name or path if not the same as model_name")
-    parser.add_argument("--tokenizer_name", default="", type=str,
-                        help="Pretrained tokenizer name or path if not the same as model_name")
     parser.add_argument("--max_seq_length", default=512, type=int,
                         help="The maximum total input sequence length after tokenization. Sequences longer "
                              "than this will be truncated.")
@@ -149,16 +145,7 @@ def main():
     if save_path: os.makedirs(save_path, exist_ok=True)
     if log_dir: os.makedirs(log_dir, exist_ok=True)
 
-    config = vars(args)
-    if save_path:
-        with open(os.path.join(save_path, "config.json"), "w") as f:
-            json.dump(config, f, indent=2)
-
     writer = SummaryWriter(log_dir) if log_dir else None
-
-    tokenizer = AutoTokenizer.from_pretrained(
-        args.tokenizer_name if args.tokenizer_name else args.model_name,
-    )
 
     data_dir = os.path.join(args.data_root, args.dataset)
     train_file = os.path.join(data_dir, f"{args.train_name}.json")
@@ -182,39 +169,28 @@ def main():
             "test": os.path.join(data_dir, "test.json"),
         }
 
-    if os.path.exists(os.path.join(cache_dir, "processor.pkl")):
-        processor = load4File(os.path.join(cache_dir, "processor.pkl"))
-    else:
-        processor = DatasetProcessor(args, tokenizer)
+    label2id = get_label_to_id(args.dataset)
+    args.num_class = len(label2id)
+
+    # 保存args / config / tokenizer
+    if save_path is not None:
+        dump2File(vars(args), os.path.join(save_path, "args.json"))
+
+    model, tokenizer = buildModel(args)
+    model.to(args.device)
+
+    processor = DatasetProcessor(args, tokenizer)
 
     features = {}
     for tag in files.keys():
         filepath = files[tag]
-        if os.path.exists(os.path.join(cache_dir, f"{tag}_features.pkl")):
+        if os.path.exists(os.path.join(cache_dir, f"{tag}_features.json")):
             print(f"loading {tag} features from cache")
-            features[tag] = load4File(os.path.join(cache_dir, f"{tag}_features.pkl"))
+            features[tag] = load4File(os.path.join(cache_dir, f"{tag}_features.json"))
         else:
             print(f"processing {tag} features")
             features[tag] = processor.read(filepath)
-            dump2File(features[tag], os.path.join(cache_dir, f"{tag}_features.pkl"))
-    dump2File(processor, os.path.join(cache_dir, "processor.pkl"))
-
-    args.num_class = processor.get_num_class()
-    config = AutoConfig.from_pretrained(
-        args.config_name if args.config_name else args.model_name,
-        num_labels=args.num_class,
-    )
-    config.gradient_checkpointing = True
-    config.num_tokens = len(tokenizer)
-
-    # 保存args / config / tokenizer
-    if save_path is not None:
-        dump2File(args, os.path.join(save_path, "args.pkl"))
-        dump2File(config, os.path.join(save_path, "config.pkl"))
-        dump2File(processor, os.path.join(save_path, "processor.pkl"))
-
-    model = REModel(args, config)
-    model.to(args.device)
+            dump2File(features[tag], os.path.join(cache_dir, f"{tag}_features.json"))
 
     train_features = features["train"]
     benchmarks = [(tag, features) for tag, features in features.items() if tag != "train"]
