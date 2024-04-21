@@ -1,5 +1,3 @@
-import copy
-
 import torch
 import random
 import pickle
@@ -30,7 +28,7 @@ def set_seed(args):
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    if args.n_gpu > 0 and torch.cuda.is_available():
+    if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
 
 
@@ -47,14 +45,16 @@ def predict(model, features, test_batch_size, device, withProbs=False):
                   'ss': batch[3].to(device),
                   'os': batch[4].to(device),
                   }
-        keys += batch[2].tolist()
+        labels = batch[2].to(device)
         with torch.no_grad():
             logit = model(**inputs)  # predict results
             prob = torch.softmax(logit, dim=1)
             # 获取prob
-            prob, pred = torch.max(prob, dim=1)
+            _, pred = torch.max(prob, dim=1)
+            # label_prob = torch.gather(prob, dim=1, index=labels.unsqueeze(1)).squeeze()
+        keys += labels.tolist()
         preds += pred.tolist()
-        probs += prob.tolist()
+        probs += prob.tolist()  # 2d的概率
 
     if not withProbs:
         return keys, preds
@@ -62,34 +62,29 @@ def predict(model, features, test_batch_size, device, withProbs=False):
         return keys, preds, probs
 
 
-def evaluate(model, features, test_batch_size, device, return_result=False):
-    keys, preds = predict(model, features, test_batch_size, device)
+def compute_f1(keys, preds):
     keys = np.array(keys, dtype=np.int64)
     preds = np.array(preds, dtype=np.int64)
     _, _, max_f1 = get_f1(keys, preds)
+    return max_f1
 
-    result = np.hstack((keys.reshape(-1, 1), preds.reshape(-1, 1)))
+
+def evaluate(model, features, test_batch_size, device, return_result=False):
+    keys, preds, probs = predict(model, features, test_batch_size, device, withProbs=True)
+    max_f1 = compute_f1(keys, preds)
+
+    keys = np.array(keys, dtype=np.float32).reshape(-1, 1)
+    results = np.hstack([probs, keys])
 
     if return_result:
-        return max_f1 * 100, result
+        return max_f1 * 100, results
     else:
         return max_f1 * 100
 
 
-def get_collate_fn(mode="default", tokenizer=None):
-    if mode == 'RDrop':
-        return RDrop_collate_fn
-    elif mode in {'DataAug', 'RSwitch'}:
-        return DataAug_collate_fn
-    elif mode in {"DFocal", "PoE"}:
-        # return get_DFocal_collate_fn(tokenizer)
-        return DFocal_collate_fn
-    elif mode in {'MixDebias'}:
-        return MixDebias_collate_fn
-    elif mode in {'DataAugDFocal', 'RSwitchDFocal'}:
-        return get_DataAugDFocal_collate_fn(tokenizer)
-    else:
-        return default_collate_fn
+def get_collate_fn(mode="default"):
+    """ignore mode and tokenizer, return [batch_org, batch_aug, batch_eo]"""
+    return get_MixDebias_collate_fn(mode)
 
 
 def default_collate_fn(batch):
@@ -108,53 +103,15 @@ def default_collate_fn(batch):
     return output
 
 
-def get_DataAugDFocal_collate_fn(tokenizer):
-    """data augmentation with debiased focal"""
-    sep_ids = tokenizer.encode(" ", add_special_tokens=False)
-
-    def DataAugDFocal_collate_fn(batch):
-        batch_org = [f[0] for f in batch]
-        batch_aug = [random.choice(f[1:]) for f in batch]
-        batch = batch_org + batch_aug
-        # print(batch)
-        new_batch = []
-        for item in batch:
-            new_item = {'labels': item['labels']}
-            input_ids = item['input_ids']
-            ss, se = item['ss'], item['se']
-            os, oe = item['os'], item['oe']
-            new_item['input_ids'] = [input_ids[0]] + input_ids[ss:se + 1] + sep_ids + input_ids[os:oe + 1] + [
-                input_ids[-1]]
-            new_item['ss'] = 1
-            new_item['os'] = 1 + (se + 1 - ss) + len(sep_ids)
-            new_batch.append(new_item)
-        return default_collate_fn(batch + new_batch)
-
-    return DataAugDFocal_collate_fn
-
-
-def DFocal_collate_fn(batch):
-    assert type(batch) is list
-    batch_org = [f[0] for f in batch]
-    batch_aug = [f[1] for f in batch]
-    return default_collate_fn(batch_org + batch_aug)
-
-
-def MixDebias_collate_fn(batch):
-    assert type(batch) is list
-    batch_org = [f[0] for f in batch]
-    batch_aug = [random.choice(f[1:-1]) for f in batch]
-    batch_eo = [f[-1] for f in batch]
-    return default_collate_fn(batch_org + batch_aug + batch_eo)
-
-
-# def get_DFocal_collate_fn(tokenizer):
-#     # batch1 = [f[0] for f in batch]
-#     # batch2 = [f[1] for f in batch]
-#     # return default_collate_fn(batch1 + batch2)
+# def get_DataAugDFocal_collate_fn(tokenizer):
+#     """data augmentation with debiased focal"""
 #     sep_ids = tokenizer.encode(" ", add_special_tokens=False)
 #
-#     def DFocal_collate_fn(batch):
+#     def DataAugDFocal_collate_fn(batch):
+#         batch_org = [f[0] for f in batch]
+#         batch_aug = [random.choice(f[1:]) for f in batch]
+#         batch = batch_org + batch_aug
+#         # print(batch)
 #         new_batch = []
 #         for item in batch:
 #             new_item = {'labels': item['labels']}
@@ -168,30 +125,46 @@ def MixDebias_collate_fn(batch):
 #             new_batch.append(new_item)
 #         return default_collate_fn(batch + new_batch)
 #
-#     return DFocal_collate_fn
+#     return DataAugDFocal_collate_fn
 #
 
-def DataAug_collate_fn(batch):
-    assert type(batch) is list
-    batch_org = [f[0] for f in batch]
-    batch_aug = [random.choice(f[1:]) for f in batch]
-    return default_collate_fn(batch_org + batch_aug)
+# def DFocal_collate_fn(batch):
+#     assert type(batch) is list
+#     batch_org = [f[0] for f in batch]
+#     batch_aug = [f[1] for f in batch]
+#     return default_collate_fn(batch_org + batch_aug)
+#
 
+def get_MixDebias_collate_fn(mode):
+    print("get MixDebias collate_fn with mode: ", mode)
 
-def RDrop_collate_fn(batch):
-    max_len = max([len(f["input_ids"]) for f in batch])
-    input_ids = [f["input_ids"] + [0] * (max_len - len(f["input_ids"])) for f in batch]
-    input_mask = [[1.0] * len(f["input_ids"]) + [0.0] * (max_len - len(f["input_ids"])) for f in batch]
-    labels = [f["labels"] for f in batch]
-    ss = [f["ss"] for f in batch]
-    os = [f["os"] for f in batch]
-    input_ids = torch.tensor(input_ids * 2, dtype=torch.long)
-    input_mask = torch.tensor(input_mask * 2, dtype=torch.float)
-    labels = torch.tensor(labels * 2, dtype=torch.long)
-    ss = torch.tensor(ss * 2, dtype=torch.long)
-    os = torch.tensor(os * 2, dtype=torch.long)
-    output = (input_ids, input_mask, labels, ss, os)
-    return output
+    def MixDebias_collate_fn(batch):
+        # 如果不是list，则直接用default_collate_fn
+        batch_org = [f[0] for f in batch]
+        batch_eo = [f[1] for f in batch]
+        batch_co = [f[2] for f in batch]
+        batch_aug = [random.choice(f[3:]) for f in batch]
+        if mode == 'default' or mode == 'Focal':
+            batch = batch_org
+        elif mode == 'EntityOnly':
+            batch = batch_eo
+        elif mode == 'EntityMask':
+            batch = batch_co
+        elif mode == 'RDrop':
+            batch = batch_org + batch_org
+        elif mode == 'DFocal' or mode == 'PoE':
+            batch = batch_org + batch_eo
+        elif mode == 'Debias':
+            batch = batch_org + batch_co
+        elif mode == 'RDataAug' or mode == 'DataAug':
+            batch = batch_org + batch_aug
+        elif mode == 'MixDebias':
+            batch = batch_org + batch_co + batch_aug
+        else:
+            assert 0
+        return default_collate_fn(batch)
+
+    return MixDebias_collate_fn
 
 
 def saveModelStateDict(model, filepath):
