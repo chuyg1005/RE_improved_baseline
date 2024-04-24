@@ -106,6 +106,7 @@ def default_collate_fn(batch):
 
 def get_MixDebias_collate_fn(mode):
     print("get MixDebias collate_fn with mode: ", mode)
+    mode = mode.split("@")[0]
 
     def MixDebias_collate_fn(batch):
         # 如果不是list，则直接用default_collate_fn
@@ -123,7 +124,7 @@ def get_MixDebias_collate_fn(mode):
             batch = batch_org + batch_org
         elif mode == 'DFocal' or mode == 'PoE':
             batch = batch_org + batch_eo
-        elif mode == 'Debias':
+        elif mode == "Debias":
             batch = batch_org + batch_co
         elif mode == 'RDataAug' or mode == 'DataAug':
             batch = batch_org + batch_aug

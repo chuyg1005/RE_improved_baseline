@@ -32,6 +32,7 @@ class REModel(nn.Module):
             elif self.mode == 'MixDebias':
                 self.kl_weight = float(mode[1])  # kl_weight
                 self.lamb = float(mode[2])  # lamb
+
         # print(f'Using lamb = {self.lamb}')
 
     def compute_loss(self, input_ids=None, attention_mask=None, labels=None, ss=None, os=None):
@@ -81,7 +82,7 @@ class REModel(nn.Module):
             logits_p, logits_co = torch.chunk(logits, chunks=2, dim=0)
             labels_p, labels_co = torch.chunk(labels, chunks=2, dim=0)
             probs_p = F.softmax(logits_p, dim=-1)
-            probs_co = F.softmax(logits_co, dim=-1).detach()
+            probs_co = F.softmax(logits_co, dim=-1).datach()  # .detach(), no detach
             label_probs_p = torch.gather(probs_p, dim=1, index=labels_p.unsqueeze(1)).squeeze()
             label_probs_co = torch.gather(probs_co, dim=1, index=labels_co.unsqueeze(1)).squeeze()
             biased_prob = label_probs_p - self.lamb * label_probs_co
