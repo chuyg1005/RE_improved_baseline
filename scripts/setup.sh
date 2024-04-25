@@ -1,8 +1,11 @@
+data_dir="../data"
+results_dir="../results"
 rm -rf data
-ln -s /home/data_91_d/chuyg/mix-debias/data data
+ln -s ${data_dir} data
 
 rm -rf ckpts
-if [ ! -d "/home/data_91_d/chuyg/mix-debias/RE_improved_baseline/ckpts" ]; then
-  mkdir -p /home/data_91_d/chuyg/mix-debias/RE_improved_baseline/ckpts
+ckpts_dir="${results_dir}/RE_improved_baseline/ckpts"
+if [ ! -d "${ckpts_dir}" ]; then
+  mkdir -p ${ckpts_dir}
 fi
-ln -s /home/data_91_d/chuyg/mix-debias/RE_improved_baseline/ckpts ckpts
+ln -s ${ckpts_dir} ckpts
